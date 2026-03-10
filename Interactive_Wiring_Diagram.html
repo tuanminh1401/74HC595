@@ -525,258 +525,371 @@
         </div>
 
         <!-- Right panel: Canvas Diagram -->
-        <div class="w-full xl:w-3/4 overflow-x-auto rounded-xl flex items-center justify-center bg-slate-900 border border-slate-700 shadow-inner p-4 relative"
-            style="min-height: 800px;" :class="{'shake-animation': voltageSetting > 6 && !isExploded}">
+        <div class="w-full xl:w-3/4 flex flex-col gap-4">
+            <!-- Breadboard / Circuit Display -->
+            <div class="overflow-x-auto rounded-xl flex items-center justify-center bg-slate-900 border border-slate-700 shadow-inner p-4 relative"
+                style="min-height: 550px;" :class="{'shake-animation': voltageSetting > 6 && !isExploded}">
 
-            <!-- Explosion Overlay -->
-            <div v-if="isExploded" class="explosion-overlay">
-                <div style="font-size: 80px; filter: drop-shadow(0 0 20px #ff0000);">💥 BÙM! 💥</div>
-                <div class="text-2xl font-bold text-white mt-4 tracking-widest uppercase"
-                    style="text-shadow: 2px 2px 4px #000;">Quá Áp! IC & LED Đã Cháy</div>
-                <div class="text-sm text-yellow-300 mt-2">74HC595 chỉ chịu được tối đa ~6.0V. Bạn đã cấp
-                    {{voltageSetting.toFixed(1)}}V!</div>
+                <!-- Explosion Overlay -->
+                <div v-if="isExploded" class="explosion-overlay">
+                    <div style="font-size: 80px; filter: drop-shadow(0 0 20px #ff0000);">💥 BÙM! 💥</div>
+                    <div class="text-2xl font-bold text-white mt-4 tracking-widest uppercase"
+                        style="text-shadow: 2px 2px 4px #000;">Quá Áp! IC & LED Đã Cháy</div>
+                    <div class="text-sm text-yellow-300 mt-2">74HC595 chỉ chịu được tối đa ~6.0V. Bạn đã cấp
+                        {{voltageSetting.toFixed(1)}}V!</div>
 
-                <div class="smoke-particle" style="left: 30%; top: 40%; animation-delay: 0.1s;"></div>
-                <div class="smoke-particle"
-                    style="left: 50%; top: 50%; animation-delay: 0.5s; width: 150px; height: 150px;"></div>
-                <div class="smoke-particle" style="left: 70%; top: 30%; animation-delay: 0.3s;"></div>
+                    <div class="smoke-particle" style="left: 30%; top: 40%; animation-delay: 0.1s;"></div>
+                    <div class="smoke-particle"
+                        style="left: 50%; top: 50%; animation-delay: 0.5s; width: 150px; height: 150px;"></div>
+                    <div class="smoke-particle" style="left: 70%; top: 30%; animation-delay: 0.3s;"></div>
+                </div>
+
+                <!-- 3D Canvas Container -->
+                <div id="canvas3d" class="absolute inset-0 bg-slate-800 rounded-xl overflow-hidden shadow-xl"
+                    :class="{ 'opacity-0 pointer-events-none': viewMode === '2d', 'opacity-100': viewMode === '3d' }"
+                    style="transition: opacity 0.3s; z-index: 5;">
+                    <!-- Overlay helper text -->
+                    <div v-show="viewMode === '3d'"
+                        class="absolute bottom-4 left-4 text-xs text-white bg-black/50 px-3 py-1 rounded pointer-events-none">
+                        Click kéo để xoay | Cuộn chuột để zoom | Kéo chuột phải để di chuyển
+                    </div>
+                </div>
+
+                <!-- SVGRenderer -->
+                <svg :width="svgW" :height="svgH"
+                    class="block max-w-none transform transition-transform origin-top-left"
+                    :class="{ 'opacity-100': viewMode === '2d', 'opacity-0 pointer-events-none': viewMode === '3d' }"
+                    style="background-color: #f1f5f9; transition: opacity 0.3s; z-index: 1;">
+                    <!-- Breadboards rendering -->
+                    <g v-for="bb in boards" :key="bb.id" :transform="`translate(${bb.x}, ${bb.y})`">
+                        <!-- Breadboard background -->
+                        <rect x="0" y="0" :width="bbW" :height="bbH" class="bb-bg" />
+
+                        <!-- Power rails -->
+                        <!-- Top Power -->
+                        <line :x1="margin" :y1="getLHoY('T+')" :x2="bbW - margin" :y2="getLHoY('T+')"
+                            class="rail-plus" />
+                        <line :x1="margin" :y1="getLHoY('T-')" :x2="bbW - margin" :y2="getLHoY('T-')"
+                            class="rail-minus" />
+                        <!-- Bottom Power -->
+                        <line :x1="margin" :y1="getLHoY('B+')" :x2="bbW - margin" :y2="getLHoY('B+')"
+                            class="rail-plus" />
+                        <line :x1="margin" :y1="getLHoY('B-')" :x2="bbW - margin" :y2="getLHoY('B-')"
+                            class="rail-minus" />
+
+                        <!-- Center Trench -->
+                        <rect :x="margin - 5" :y="getLHoY('E') + dy + 2" :width="bbW - 2*margin + 10" :height="10"
+                            class="bb-trench" />
+
+                        <!-- Holes -->
+                        <template v-for="c in COLS" :key="c">
+                            <!-- Power Holes Top -->
+                            <circle :cx="getLHoX(c)" :cy="getLHoY('T+')" r="3.5" class="hole" />
+                            <circle :cx="getLHoX(c)" :cy="getLHoY('T-')" r="3.5" class="hole" />
+
+                            <!-- Signal Holes A-E -->
+                            <circle v-for="r in ['A','B','C','D','E']" :key="'T'+r+c" :cx="getLHoX(c)" :cy="getLHoY(r)"
+                                r="3.5" class="hole" />
+                            <!-- Signal Holes F-J -->
+                            <circle v-for="r in ['F','G','H','I','J']" :key="'B'+r+c" :cx="getLHoX(c)" :cy="getLHoY(r)"
+                                r="3.5" class="hole" />
+
+                            <!-- Power Holes Bottom -->
+                            <circle :cx="getLHoX(c)" :cy="getLHoY('B+')" r="3.5" class="hole" />
+                            <circle :cx="getLHoX(c)" :cy="getLHoY('B-')" r="3.5" class="hole" />
+
+                            <!-- Column Numbers -->
+                            <text v-if="c%5===0 || c===1" :x="getLHoX(c)" :y="getLHoY('A')-10"
+                                class="bb-label">{{c}}</text>
+                            <text v-if="c%5===0 || c===1" :x="getLHoX(c)" :y="getLHoY('J')+16"
+                                class="bb-label">{{c}}</text>
+                        </template>
+
+                        <!-- Row Letters -->
+                        <template v-for="r in ['A','B','C','D','E', 'F','G','H','I','J']" :key="'L'+r">
+                            <text :x="margin/2" :y="getLHoY(r)+3" class="bb-label">{{r}}</text>
+                            <text :x="bbW - margin/2" :y="getLHoY(r)+3" class="bb-label">{{r}}</text>
+                        </template>
+                        <text :x="margin/2" :y="getLHoY('T+') + 3" class="bb-label fill-red-600">+</text>
+                        <text :x="margin/2" :y="getLHoY('T-') + 3" class="bb-label fill-blue-600">-</text>
+                        <text :x="margin/2" :y="getLHoY('B+') + 3" class="bb-label fill-red-600">+</text>
+                        <text :x="margin/2" :y="getLHoY('B-') + 3" class="bb-label fill-blue-600">-</text>
+                    </g>
+
+                    <!-- Components (ICs, Resistors, LEDs, Buttons) -->
+                    <g id="components"
+                        :style="isExploded ? 'filter: grayscale(100%) brightness(0.3) contrast(1.5) drop-shadow(0 0 5px rgba(0,0,0,1));' : ''">
+                        <template v-for="comp in components" :key="comp.id">
+                            <g :style="{ opacity: isCompActive(comp.step) ? 1 : 0.3, transition: 'opacity 0.3s' }">
+
+                                <!-- Resistor -->
+                                <g v-if="comp.type === 'RES'"
+                                    :transform="`translate(${getPos(comp.s).x}, ${getPos(comp.s).y}) rotate(${getResAngle(comp)})`">
+                                    <line x1="0" y1="0" :x2="getResLen(comp)" y2="0" class="res-wire" />
+                                    <g :transform="`translate(${getResLen(comp)/2 - 12}, -4)`">
+                                        <rect x="0" y="0" width="24" height="8" class="res-body" />
+                                        <rect x="3" y="0" width="3" height="8" :fill="comp.bands[0]" />
+                                        <rect x="8" y="0" width="3" height="8" :fill="comp.bands[1]" />
+                                        <rect x="13" y="0" width="3" height="8" :fill="comp.bands[2]" />
+                                        <rect x="19" y="0" width="2" height="8" fill="#b8860b" />
+                                    </g>
+                                    <text :x="getResLen(comp)/2" y="-8" class="text-[8px] fill-slate-500 font-bold"
+                                        text-anchor="middle"
+                                        :transform="getResAngle(comp) > 90 || getResAngle(comp) < -90 ? `rotate(180 ${getResLen(comp)/2} -8)` : ''">{{comp.ohm}}</text>
+                                </g>
+
+                                <!-- IC -->
+                                <g v-else-if="comp.type === 'IC'">
+                                    <rect :x="getPos(comp.b + '_E_' + comp.colStart).x - dx/2 - 2"
+                                        :y="getPos(comp.b + '_E_' + comp.colStart).y - 6"
+                                        :width="(comp.colEnd - comp.colStart)*dx + dx + 4" :height="dy + 26"
+                                        class="ic-body" />
+
+                                    <!-- Notch -->
+                                    <circle :cx="getPos(comp.b + '_E_' + comp.colStart).x - dx/2 + 4"
+                                        :cy="(getPos(comp.b + '_E_' + comp.colStart).y + getPos(comp.b + '_F_' + comp.colStart).y)/2"
+                                        r="4" class="ic-notch" />
+
+                                    <!-- Pins Top -->
+                                    <rect v-for="(c, i) in Array.from({length: 8}, (_,i) => comp.colStart + i)"
+                                        :key="'pT'+c" :x="getPos(comp.b + '_E_' + c).x - 3"
+                                        :y="getPos(comp.b + '_E_' + c).y - 12" width="6" height="12" class="ic-pin"
+                                        @mouseover="showTooltip($event, getICPinName(16 - i), getPos(comp.b + '_E_' + c).x, getPos(comp.b + '_E_' + c).y - 15)"
+                                        @mouseleave="hideTooltip" cursor="help" />
+                                    <!-- Pins Bottom -->
+                                    <rect v-for="(c, i) in Array.from({length: 8}, (_,i) => comp.colStart + i)"
+                                        :key="'pB'+c" :x="getPos(comp.b + '_F_' + c).x - 3"
+                                        :y="getPos(comp.b + '_F_' + c).y + 0" width="6" height="12" class="ic-pin"
+                                        @mouseover="showTooltip($event, getICPinName(i + 1), getPos(comp.b + '_F_' + c).x, getPos(comp.b + '_F_' + c).y + 15)"
+                                        @mouseleave="hideTooltip" cursor="help" />
+
+                                    <text :x="getPos(comp.b + '_E_' + (comp.colStart + 3.5)).x"
+                                        :y="getPos(comp.b + '_E_' + comp.colStart).y + 12"
+                                        class="ic-text">{{comp.name}}</text>
+                                    <text :x="getPos(comp.b + '_E_' + (comp.colStart + 3.5)).x"
+                                        :y="getPos(comp.b + '_E_' + comp.colStart).y + 24" class="ic-text"
+                                        style="font-size: 8px; fill: #9ca3af;">74HC595</text>
+                                </g>
+
+                                <!-- LED 7 Segment -->
+                                <g v-else-if="comp.type === 'LED'">
+                                    <!-- Body spans 5 columns, placed across trench row C to H -->
+                                    <rect :x="getPos(comp.b + '_C_' + comp.colStart).x - dx/2 - 4"
+                                        :y="getPos(comp.b + '_C_' + comp.colStart).y - 8" :width="4*dx + dx + 8"
+                                        :height="5*dy + 16" class="led-body" />
+
+                                    <!-- Pins Top -->
+                                    <rect v-for="(c, i) in Array.from({length: 5}, (_,i) => comp.colStart + i)"
+                                        :key="'lT'+c" :x="getPos(comp.b + '_C_' + c).x - 3"
+                                        :y="getPos(comp.b + '_C_' + c).y - 12" width="6" height="12" class="ic-pin"
+                                        @mouseover="showTooltip($event, getLEDPinName('top', i), getPos(comp.b + '_C_' + c).x, getPos(comp.b + '_C_' + c).y - 15)"
+                                        @mouseleave="hideTooltip" cursor="help" />
+                                    <!-- Pins Bot -->
+                                    <rect v-for="(c, i) in Array.from({length: 5}, (_,i) => comp.colStart + i)"
+                                        :key="'lB'+c" :x="getPos(comp.b + '_H_' + c).x - 3"
+                                        :y="getPos(comp.b + '_H_' + c).y" width="6" height="12" class="ic-pin"
+                                        @mouseover="showTooltip($event, getLEDPinName('bot', i), getPos(comp.b + '_H_' + c).x, getPos(comp.b + '_H_' + c).y + 15)"
+                                        @mouseleave="hideTooltip" cursor="help" />
+
+                                    <!-- 7 Segment Paths Mapping inside LED body -->
+                                    <g
+                                        :transform="`translate(${getPos(comp.b + '_C_' + comp.colStart).x - 4}, ${getPos(comp.b + '_C_' + comp.colStart).y + 4})`">
+                                        <!-- Base dims: W = 56, H = 70. Segments roughly scaled -->
+                                        <!-- A (Top) -->
+                                        <polygon points="18,10 22,6 38,6 42,10 38,14 22,14"
+                                            :fill="isSegOn(comp.ledIdx, 1) ? '#ef4444' : '#450a0a'" />
+                                        <!-- B (Top-Right) -->
+                                        <polygon points="43,11 47,15 47,31 43,35 39,31 39,15"
+                                            :fill="isSegOn(comp.ledIdx, 2) ? '#ef4444' : '#450a0a'" />
+                                        <!-- C (Bot-Right) -->
+                                        <polygon points="43,37 47,41 47,57 43,61 39,57 39,41"
+                                            :fill="isSegOn(comp.ledIdx, 4) ? '#ef4444' : '#450a0a'" />
+                                        <!-- D (Bottom) -->
+                                        <polygon points="18,62 22,58 38,58 42,62 38,66 22,66"
+                                            :fill="isSegOn(comp.ledIdx, 8) ? '#ef4444' : '#450a0a'" />
+                                        <!-- E (Bot-Left) -->
+                                        <polygon points="17,37 21,41 21,57 17,61 13,57 13,41"
+                                            :fill="isSegOn(comp.ledIdx, 16) ? '#ef4444' : '#450a0a'" />
+                                        <!-- F (Top-Left) -->
+                                        <polygon points="17,11 21,15 21,31 17,35 13,31 13,15"
+                                            :fill="isSegOn(comp.ledIdx, 32) ? '#ef4444' : '#450a0a'" />
+                                        <!-- G (Middle) -->
+                                        <polygon points="18,36 22,32 38,32 42,36 38,40 22,40"
+                                            :fill="isSegOn(comp.ledIdx, 64) ? '#ef4444' : '#450a0a'" />
+                                        <!-- DP (Dot) -->
+                                        <circle cx="50" cy="62" r="4"
+                                            :fill="isSegOn(comp.ledIdx, 128) ? '#ef4444' : '#450a0a'" />
+                                    </g>
+                                </g>
+
+                                <!-- Button (Tactile Switch) -->
+                                <g v-else-if="comp.type === 'BTN'" @mousedown="pressBtnFromCanvas(comp.name)"
+                                    @mouseup="releaseBtnFromCanvas(comp.name)"
+                                    @mouseleave="releaseBtnFromCanvas(comp.name)">
+
+                                    <rect :x="getPos(comp.b + '_E_' + comp.colStart).x - dx/2 - 2"
+                                        :y="getPos(comp.b + '_E_' + comp.colStart).y - 5" :width="2*dx + dx + 4"
+                                        :height="dy + 24" class="btn-body" />
+
+                                    <circle :cx="getPos(comp.b + '_E_' + comp.colStart).x + dx/2"
+                                        :cy="(getPos(comp.b + '_E_' + comp.colStart).y + getPos(comp.b + '_F_' + comp.colStart).y)/2"
+                                        r="8" class="btn-inner"
+                                        :fill="isBtnPressed(comp.name) ? '#dc2626' : '#1f2937'" />
+
+                                    <!-- Pins 4 Corners -->
+                                    <rect :x="getPos(comp.b + '_E_' + comp.colStart).x - 3"
+                                        :y="getPos(comp.b + '_E_' + comp.colStart).y - 10" width="6" height="10"
+                                        class="ic-pin"
+                                        @mouseover="showTooltip($event, 'Nối Chung 1', getPos(comp.b + '_E_' + comp.colStart).x, getPos(comp.b + '_E_' + comp.colStart).y - 15)"
+                                        @mouseleave="hideTooltip" cursor="help" />
+                                    <rect :x="getPos(comp.b + '_E_' + (comp.colStart+2)).x - 3"
+                                        :y="getPos(comp.b + '_E_' + (comp.colStart+2)).y - 10" width="6" height="10"
+                                        class="ic-pin"
+                                        @mouseover="showTooltip($event, 'Nối Chung 1', getPos(comp.b + '_E_' + (comp.colStart+2)).x, getPos(comp.b + '_E_' + (comp.colStart+2)).y - 15)"
+                                        @mouseleave="hideTooltip" cursor="help" />
+                                    <rect :x="getPos(comp.b + '_F_' + comp.colStart).x - 3"
+                                        :y="getPos(comp.b + '_F_' + comp.colStart).y + 0" width="6" height="10"
+                                        class="ic-pin"
+                                        @mouseover="showTooltip($event, 'Nối Chung 2', getPos(comp.b + '_F_' + comp.colStart).x, getPos(comp.b + '_F_' + comp.colStart).y + 15)"
+                                        @mouseleave="hideTooltip" cursor="help" />
+                                    <rect :x="getPos(comp.b + '_F_' + (comp.colStart+2)).x - 3"
+                                        :y="getPos(comp.b + '_F_' + (comp.colStart+2)).y + 0" width="6" height="10"
+                                        class="ic-pin"
+                                        @mouseover="showTooltip($event, 'Nối Chung 2', getPos(comp.b + '_F_' + (comp.colStart+2)).x, getPos(comp.b + '_F_' + (comp.colStart+2)).y + 15)"
+                                        @mouseleave="hideTooltip" cursor="help" />
+
+                                    <text :x="getPos(comp.b + '_E_' + comp.colStart).x + dx/2"
+                                        :y="getPos(comp.b + '_E_' + comp.colStart).y - 15"
+                                        class="btn-text">{{comp.name}}</text>
+                                </g>
+
+                            </g>
+                        </template>
+                    </g>
+
+                    <!-- Wires Routing -->
+                    <g id="wires">
+                        <template v-for="(wire, i) in wires" :key="'w'+i">
+                            <path :d="getWirePath(wire)"
+                                :class="['wire', `wire-${wire.color}`, isWireActive(wire.step) ? '' : 'wire-inactive']"
+                                :title="wire.desc">
+                                <title>{{wire.desc}}</title>
+                            </path>
+                        </template>
+                    </g>
+
+                    <!-- Tooltip Popup Overlay -->
+                    <g v-if="tooltip.show" :transform="`translate(${tooltip.x}, ${tooltip.y})`" style="z-index: 100;">
+                        <!-- Auto-sizing rect based on text length (approximate) -->
+                        <rect :x="-(tooltip.text.length * 6.5)/2 - 8" y="-12" :width="tooltip.text.length * 6.5 + 16"
+                            height="20" class="pin-tooltip-bg" />
+                        <text x="0" y="2" class="pin-tooltip-txt">{{ tooltip.text }}</text>
+                    </g>
+
+                </svg>
             </div>
 
-            <!-- 3D Canvas Container -->
-            <div id="canvas3d" class="absolute inset-0 bg-slate-800 rounded-xl overflow-hidden shadow-xl"
-                :class="{ 'opacity-0 pointer-events-none': viewMode === '2d', 'opacity-100': viewMode === '3d' }"
-                style="transition: opacity 0.3s; z-index: 5;">
-                <!-- Overlay helper text -->
-                <div v-show="viewMode === '3d'"
-                    class="absolute bottom-4 left-4 text-xs text-white bg-black/50 px-3 py-1 rounded pointer-events-none">
-                    Click kéo để xoay | Cuộn chuột để zoom | Kéo chuột phải để di chuyển
+            <!-- Oscilloscope & Function Generator Panel -->
+            <div
+                class="bg-gray-950 border-2 border-slate-700 rounded-xl p-4 shadow-2xl relative flex flex-col xl:flex-row gap-4">
+                <!-- Pulse Generator Controls -->
+                <div
+                    class="w-full xl:w-1/4 bg-slate-900 border border-slate-800 rounded p-3 flex flex-col relative overflow-hidden group">
+                    <div
+                        class="absolute inset-0 bg-teal-500/5 pointer-events-none group-hover:bg-teal-500/10 transition">
+                    </div>
+                    <h3
+                        class="text-[10px] font-bold text-teal-400 mb-3 flex items-center gap-2 uppercase tracking-wider">
+                        <span class="w-2 h-2 rounded-full bg-teal-500"
+                            :class="osc.funcGen.on ? 'animate-ping' : ''"></span>
+                        Máy Phát Xung
+                    </h3>
+
+                    <div class="flex items-center justify-between mb-3 z-10">
+                        <span class="text-[9px] text-slate-400 font-bold">TRẠNG THÁI</span>
+                        <button @mousedown="toggleFuncGen"
+                            :class="osc.funcGen.on ? 'bg-red-600 hover:bg-red-500 shadow-[0_0_10px_rgba(220,38,38,0.5)]' : 'bg-emerald-600 hover:bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]'"
+                            class="px-3 py-1 text-[9px] font-bold text-white rounded transition-all active:scale-95">
+                            {{ osc.funcGen.on ? 'TẮT PHÁT (STOP)' : 'BẬT MÁY (RUN)' }}
+                        </button>
+                    </div>
+
+                    <div class="mb-3 z-10">
+                        <div class="flex justify-between text-[9px] text-slate-400 mb-1">
+                            <span>TẦN SỐ</span>
+                            <span class="font-bold text-teal-300">{{osc.funcGen.freq}} Hz</span>
+                        </div>
+                        <input type="range" min="1" max="50" step="1" v-model.number="osc.funcGen.freq"
+                            class="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-teal-400">
+                    </div>
+
+                    <div class="mb-3 z-10">
+                        <div class="flex justify-between text-[9px] text-slate-400 mb-1">
+                            <span>DUTY CYCLE</span>
+                            <span class="font-bold text-teal-300">{{osc.funcGen.duty}} %</span>
+                        </div>
+                        <input type="range" min="10" max="90" step="10" v-model.number="osc.funcGen.duty"
+                            class="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-teal-400">
+                    </div>
+
+                    <div class="z-10 mt-auto">
+                        <div class="flex justify-between text-[9px] text-slate-400 mb-1">
+                            <span>KẾT NỐI ĐẦU RA -></span>
+                        </div>
+                        <select v-model="osc.funcGen.target"
+                            class="w-full bg-black text-[10px] text-teal-400 font-bold border border-slate-700 rounded p-1 outline-none cursor-pointer">
+                            <option value="CLK">Chân CLOCK (Pulse)</option>
+                            <option value="LAT">Chân LATCH (Pulse)</option>
+                            <option value="DAT">Chân DATA (Vuông)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Oscilloscope Canvas -->
+                <div
+                    class="w-full xl:w-3/4 flex flex-col bg-slate-900 border border-slate-800 rounded p-3 relative overflow-hidden">
+                    <div class="absolute inset-0 bg-blue-500/5 pointer-events-none"></div>
+                    <div class="flex justify-between items-center mb-2 border-b border-slate-800 pb-2 z-10">
+                        <h3 class="text-[10px] uppercase font-bold text-blue-400 flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full"
+                                :class="osc.run ? 'bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.8)]' : 'bg-red-500'"></span>
+                            Oscilloscope
+                        </h3>
+                        <div class="flex items-center gap-3">
+                            <div class="text-[9px] text-slate-400 flex items-center gap-2">
+                                <span>TỐC ĐỘ QUÉT:</span>
+                                <input type="range" min="1" max="10" step="1" v-model.number="osc.timeDiv"
+                                    class="w-16 h-1 accent-blue-400 cursor-pointer">
+                            </div>
+                            <button @click="osc.run = !osc.run"
+                                class="px-3 py-1 text-[9px] font-bold text-white rounded shadow-lg active:scale-95 transition-transform"
+                                :class="osc.run ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500'">
+                                {{ osc.run ? 'STOP' : 'RUN' }}
+                            </button>
+                            <button @click="clearOsc"
+                                class="px-2 py-1 text-[9px] font-bold text-slate-300 bg-slate-700 hover:bg-slate-600 rounded active:scale-95 transition-transform">
+                                CLEAR
+                            </button>
+                        </div>
+                    </div>
+
+                    <div
+                        class="flex-1 min-h-[220px] relative border-2 border-slate-700 rounded overflow-hidden shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] z-10">
+                        <div
+                            class="absolute top-2 left-2 flex flex-col gap-1 text-[9px] font-mono pointer-events-none z-10 opacity-80">
+                            <div class="bg-black/60 px-2 py-0.5 rounded text-yellow-400 border border-yellow-900/50">CH1
+                                (CLK): 5.0V/DIV</div>
+                            <div class="bg-black/60 px-2 py-0.5 rounded text-green-400 border border-green-900/50">CH2
+                                (LAT): 5.0V/DIV</div>
+                            <div class="bg-black/60 px-2 py-0.5 rounded text-purple-400 border border-purple-900/50">CH3
+                                (DAT): 5.0V/DIV</div>
+                            <div class="bg-black/60 px-2 py-0.5 rounded text-blue-400 border border-blue-900/50">CH4
+                                (Q0) : 5.0V/DIV</div>
+                        </div>
+                        <canvas id="oscCanvas" class="w-full h-full block bg-black"></canvas>
+                    </div>
                 </div>
             </div>
-
-            <!-- SVGRenderer -->
-            <svg :width="svgW" :height="svgH" class="block max-w-none transform transition-transform origin-top-left"
-                :class="{ 'opacity-100': viewMode === '2d', 'opacity-0 pointer-events-none': viewMode === '3d' }"
-                style="background-color: #f1f5f9; transition: opacity 0.3s; z-index: 1;">
-                <!-- Breadboards rendering -->
-                <g v-for="bb in boards" :key="bb.id" :transform="`translate(${bb.x}, ${bb.y})`">
-                    <!-- Breadboard background -->
-                    <rect x="0" y="0" :width="bbW" :height="bbH" class="bb-bg" />
-
-                    <!-- Power rails -->
-                    <!-- Top Power -->
-                    <line :x1="margin" :y1="getLHoY('T+')" :x2="bbW - margin" :y2="getLHoY('T+')" class="rail-plus" />
-                    <line :x1="margin" :y1="getLHoY('T-')" :x2="bbW - margin" :y2="getLHoY('T-')" class="rail-minus" />
-                    <!-- Bottom Power -->
-                    <line :x1="margin" :y1="getLHoY('B+')" :x2="bbW - margin" :y2="getLHoY('B+')" class="rail-plus" />
-                    <line :x1="margin" :y1="getLHoY('B-')" :x2="bbW - margin" :y2="getLHoY('B-')" class="rail-minus" />
-
-                    <!-- Center Trench -->
-                    <rect :x="margin - 5" :y="getLHoY('E') + dy + 2" :width="bbW - 2*margin + 10" :height="10"
-                        class="bb-trench" />
-
-                    <!-- Holes -->
-                    <template v-for="c in COLS" :key="c">
-                        <!-- Power Holes Top -->
-                        <circle :cx="getLHoX(c)" :cy="getLHoY('T+')" r="3.5" class="hole" />
-                        <circle :cx="getLHoX(c)" :cy="getLHoY('T-')" r="3.5" class="hole" />
-
-                        <!-- Signal Holes A-E -->
-                        <circle v-for="r in ['A','B','C','D','E']" :key="'T'+r+c" :cx="getLHoX(c)" :cy="getLHoY(r)"
-                            r="3.5" class="hole" />
-                        <!-- Signal Holes F-J -->
-                        <circle v-for="r in ['F','G','H','I','J']" :key="'B'+r+c" :cx="getLHoX(c)" :cy="getLHoY(r)"
-                            r="3.5" class="hole" />
-
-                        <!-- Power Holes Bottom -->
-                        <circle :cx="getLHoX(c)" :cy="getLHoY('B+')" r="3.5" class="hole" />
-                        <circle :cx="getLHoX(c)" :cy="getLHoY('B-')" r="3.5" class="hole" />
-
-                        <!-- Column Numbers -->
-                        <text v-if="c%5===0 || c===1" :x="getLHoX(c)" :y="getLHoY('A')-10" class="bb-label">{{c}}</text>
-                        <text v-if="c%5===0 || c===1" :x="getLHoX(c)" :y="getLHoY('J')+16" class="bb-label">{{c}}</text>
-                    </template>
-
-                    <!-- Row Letters -->
-                    <template v-for="r in ['A','B','C','D','E', 'F','G','H','I','J']" :key="'L'+r">
-                        <text :x="margin/2" :y="getLHoY(r)+3" class="bb-label">{{r}}</text>
-                        <text :x="bbW - margin/2" :y="getLHoY(r)+3" class="bb-label">{{r}}</text>
-                    </template>
-                    <text :x="margin/2" :y="getLHoY('T+') + 3" class="bb-label fill-red-600">+</text>
-                    <text :x="margin/2" :y="getLHoY('T-') + 3" class="bb-label fill-blue-600">-</text>
-                    <text :x="margin/2" :y="getLHoY('B+') + 3" class="bb-label fill-red-600">+</text>
-                    <text :x="margin/2" :y="getLHoY('B-') + 3" class="bb-label fill-blue-600">-</text>
-                </g>
-
-                <!-- Components (ICs, Resistors, LEDs, Buttons) -->
-                <g id="components"
-                    :style="isExploded ? 'filter: grayscale(100%) brightness(0.3) contrast(1.5) drop-shadow(0 0 5px rgba(0,0,0,1));' : ''">
-                    <template v-for="comp in components" :key="comp.id">
-                        <g :style="{ opacity: isCompActive(comp.step) ? 1 : 0.3, transition: 'opacity 0.3s' }">
-
-                            <!-- Resistor -->
-                            <g v-if="comp.type === 'RES'"
-                                :transform="`translate(${getPos(comp.s).x}, ${getPos(comp.s).y}) rotate(${getResAngle(comp)})`">
-                                <line x1="0" y1="0" :x2="getResLen(comp)" y2="0" class="res-wire" />
-                                <g :transform="`translate(${getResLen(comp)/2 - 12}, -4)`">
-                                    <rect x="0" y="0" width="24" height="8" class="res-body" />
-                                    <rect x="3" y="0" width="3" height="8" :fill="comp.bands[0]" />
-                                    <rect x="8" y="0" width="3" height="8" :fill="comp.bands[1]" />
-                                    <rect x="13" y="0" width="3" height="8" :fill="comp.bands[2]" />
-                                    <rect x="19" y="0" width="2" height="8" fill="#b8860b" />
-                                </g>
-                                <text :x="getResLen(comp)/2" y="-8" class="text-[8px] fill-slate-500 font-bold"
-                                    text-anchor="middle"
-                                    :transform="getResAngle(comp) > 90 || getResAngle(comp) < -90 ? `rotate(180 ${getResLen(comp)/2} -8)` : ''">{{comp.ohm}}</text>
-                            </g>
-
-                            <!-- IC -->
-                            <g v-else-if="comp.type === 'IC'">
-                                <rect :x="getPos(comp.b + '_E_' + comp.colStart).x - dx/2 - 2"
-                                    :y="getPos(comp.b + '_E_' + comp.colStart).y - 6"
-                                    :width="(comp.colEnd - comp.colStart)*dx + dx + 4" :height="dy + 26"
-                                    class="ic-body" />
-
-                                <!-- Notch -->
-                                <circle :cx="getPos(comp.b + '_E_' + comp.colStart).x - dx/2 + 4"
-                                    :cy="(getPos(comp.b + '_E_' + comp.colStart).y + getPos(comp.b + '_F_' + comp.colStart).y)/2"
-                                    r="4" class="ic-notch" />
-
-                                <!-- Pins Top -->
-                                <rect v-for="(c, i) in Array.from({length: 8}, (_,i) => comp.colStart + i)"
-                                    :key="'pT'+c" :x="getPos(comp.b + '_E_' + c).x - 3"
-                                    :y="getPos(comp.b + '_E_' + c).y - 12" width="6" height="12" class="ic-pin"
-                                    @mouseover="showTooltip($event, getICPinName(16 - i), getPos(comp.b + '_E_' + c).x, getPos(comp.b + '_E_' + c).y - 15)"
-                                    @mouseleave="hideTooltip" cursor="help" />
-                                <!-- Pins Bottom -->
-                                <rect v-for="(c, i) in Array.from({length: 8}, (_,i) => comp.colStart + i)"
-                                    :key="'pB'+c" :x="getPos(comp.b + '_F_' + c).x - 3"
-                                    :y="getPos(comp.b + '_F_' + c).y + 0" width="6" height="12" class="ic-pin"
-                                    @mouseover="showTooltip($event, getICPinName(i + 1), getPos(comp.b + '_F_' + c).x, getPos(comp.b + '_F_' + c).y + 15)"
-                                    @mouseleave="hideTooltip" cursor="help" />
-
-                                <text :x="getPos(comp.b + '_E_' + (comp.colStart + 3.5)).x"
-                                    :y="getPos(comp.b + '_E_' + comp.colStart).y + 12"
-                                    class="ic-text">{{comp.name}}</text>
-                                <text :x="getPos(comp.b + '_E_' + (comp.colStart + 3.5)).x"
-                                    :y="getPos(comp.b + '_E_' + comp.colStart).y + 24" class="ic-text"
-                                    style="font-size: 8px; fill: #9ca3af;">74HC595</text>
-                            </g>
-
-                            <!-- LED 7 Segment -->
-                            <g v-else-if="comp.type === 'LED'">
-                                <!-- Body spans 5 columns, placed across trench row C to H -->
-                                <rect :x="getPos(comp.b + '_C_' + comp.colStart).x - dx/2 - 4"
-                                    :y="getPos(comp.b + '_C_' + comp.colStart).y - 8" :width="4*dx + dx + 8"
-                                    :height="5*dy + 16" class="led-body" />
-
-                                <!-- Pins Top -->
-                                <rect v-for="(c, i) in Array.from({length: 5}, (_,i) => comp.colStart + i)"
-                                    :key="'lT'+c" :x="getPos(comp.b + '_C_' + c).x - 3"
-                                    :y="getPos(comp.b + '_C_' + c).y - 12" width="6" height="12" class="ic-pin"
-                                    @mouseover="showTooltip($event, getLEDPinName('top', i), getPos(comp.b + '_C_' + c).x, getPos(comp.b + '_C_' + c).y - 15)"
-                                    @mouseleave="hideTooltip" cursor="help" />
-                                <!-- Pins Bot -->
-                                <rect v-for="(c, i) in Array.from({length: 5}, (_,i) => comp.colStart + i)"
-                                    :key="'lB'+c" :x="getPos(comp.b + '_H_' + c).x - 3"
-                                    :y="getPos(comp.b + '_H_' + c).y" width="6" height="12" class="ic-pin"
-                                    @mouseover="showTooltip($event, getLEDPinName('bot', i), getPos(comp.b + '_H_' + c).x, getPos(comp.b + '_H_' + c).y + 15)"
-                                    @mouseleave="hideTooltip" cursor="help" />
-
-                                <!-- 7 Segment Paths Mapping inside LED body -->
-                                <g
-                                    :transform="`translate(${getPos(comp.b + '_C_' + comp.colStart).x - 4}, ${getPos(comp.b + '_C_' + comp.colStart).y + 4})`">
-                                    <!-- Base dims: W = 56, H = 70. Segments roughly scaled -->
-                                    <!-- A (Top) -->
-                                    <polygon points="18,10 22,6 38,6 42,10 38,14 22,14"
-                                        :fill="isSegOn(comp.ledIdx, 1) ? '#ef4444' : '#450a0a'" />
-                                    <!-- B (Top-Right) -->
-                                    <polygon points="43,11 47,15 47,31 43,35 39,31 39,15"
-                                        :fill="isSegOn(comp.ledIdx, 2) ? '#ef4444' : '#450a0a'" />
-                                    <!-- C (Bot-Right) -->
-                                    <polygon points="43,37 47,41 47,57 43,61 39,57 39,41"
-                                        :fill="isSegOn(comp.ledIdx, 4) ? '#ef4444' : '#450a0a'" />
-                                    <!-- D (Bottom) -->
-                                    <polygon points="18,62 22,58 38,58 42,62 38,66 22,66"
-                                        :fill="isSegOn(comp.ledIdx, 8) ? '#ef4444' : '#450a0a'" />
-                                    <!-- E (Bot-Left) -->
-                                    <polygon points="17,37 21,41 21,57 17,61 13,57 13,41"
-                                        :fill="isSegOn(comp.ledIdx, 16) ? '#ef4444' : '#450a0a'" />
-                                    <!-- F (Top-Left) -->
-                                    <polygon points="17,11 21,15 21,31 17,35 13,31 13,15"
-                                        :fill="isSegOn(comp.ledIdx, 32) ? '#ef4444' : '#450a0a'" />
-                                    <!-- G (Middle) -->
-                                    <polygon points="18,36 22,32 38,32 42,36 38,40 22,40"
-                                        :fill="isSegOn(comp.ledIdx, 64) ? '#ef4444' : '#450a0a'" />
-                                    <!-- DP (Dot) -->
-                                    <circle cx="50" cy="62" r="4"
-                                        :fill="isSegOn(comp.ledIdx, 128) ? '#ef4444' : '#450a0a'" />
-                                </g>
-                            </g>
-
-                            <!-- Button (Tactile Switch) -->
-                            <g v-else-if="comp.type === 'BTN'" @mousedown="pressBtnFromCanvas(comp.name)"
-                                @mouseup="releaseBtnFromCanvas(comp.name)"
-                                @mouseleave="releaseBtnFromCanvas(comp.name)">
-
-                                <rect :x="getPos(comp.b + '_E_' + comp.colStart).x - dx/2 - 2"
-                                    :y="getPos(comp.b + '_E_' + comp.colStart).y - 5" :width="2*dx + dx + 4"
-                                    :height="dy + 24" class="btn-body" />
-
-                                <circle :cx="getPos(comp.b + '_E_' + comp.colStart).x + dx/2"
-                                    :cy="(getPos(comp.b + '_E_' + comp.colStart).y + getPos(comp.b + '_F_' + comp.colStart).y)/2"
-                                    r="8" class="btn-inner" :fill="isBtnPressed(comp.name) ? '#dc2626' : '#1f2937'" />
-
-                                <!-- Pins 4 Corners -->
-                                <rect :x="getPos(comp.b + '_E_' + comp.colStart).x - 3"
-                                    :y="getPos(comp.b + '_E_' + comp.colStart).y - 10" width="6" height="10"
-                                    class="ic-pin"
-                                    @mouseover="showTooltip($event, 'Nối Chung 1', getPos(comp.b + '_E_' + comp.colStart).x, getPos(comp.b + '_E_' + comp.colStart).y - 15)"
-                                    @mouseleave="hideTooltip" cursor="help" />
-                                <rect :x="getPos(comp.b + '_E_' + (comp.colStart+2)).x - 3"
-                                    :y="getPos(comp.b + '_E_' + (comp.colStart+2)).y - 10" width="6" height="10"
-                                    class="ic-pin"
-                                    @mouseover="showTooltip($event, 'Nối Chung 1', getPos(comp.b + '_E_' + (comp.colStart+2)).x, getPos(comp.b + '_E_' + (comp.colStart+2)).y - 15)"
-                                    @mouseleave="hideTooltip" cursor="help" />
-                                <rect :x="getPos(comp.b + '_F_' + comp.colStart).x - 3"
-                                    :y="getPos(comp.b + '_F_' + comp.colStart).y + 0" width="6" height="10"
-                                    class="ic-pin"
-                                    @mouseover="showTooltip($event, 'Nối Chung 2', getPos(comp.b + '_F_' + comp.colStart).x, getPos(comp.b + '_F_' + comp.colStart).y + 15)"
-                                    @mouseleave="hideTooltip" cursor="help" />
-                                <rect :x="getPos(comp.b + '_F_' + (comp.colStart+2)).x - 3"
-                                    :y="getPos(comp.b + '_F_' + (comp.colStart+2)).y + 0" width="6" height="10"
-                                    class="ic-pin"
-                                    @mouseover="showTooltip($event, 'Nối Chung 2', getPos(comp.b + '_F_' + (comp.colStart+2)).x, getPos(comp.b + '_F_' + (comp.colStart+2)).y + 15)"
-                                    @mouseleave="hideTooltip" cursor="help" />
-
-                                <text :x="getPos(comp.b + '_E_' + comp.colStart).x + dx/2"
-                                    :y="getPos(comp.b + '_E_' + comp.colStart).y - 15"
-                                    class="btn-text">{{comp.name}}</text>
-                            </g>
-
-                        </g>
-                    </template>
-                </g>
-
-                <!-- Wires Routing -->
-                <g id="wires">
-                    <template v-for="(wire, i) in wires" :key="'w'+i">
-                        <path :d="getWirePath(wire)"
-                            :class="['wire', `wire-${wire.color}`, isWireActive(wire.step) ? '' : 'wire-inactive']"
-                            :title="wire.desc">
-                            <title>{{wire.desc}}</title>
-                        </path>
-                    </template>
-                </g>
-
-                <!-- Tooltip Popup Overlay -->
-                <g v-if="tooltip.show" :transform="`translate(${tooltip.x}, ${tooltip.y})`" style="z-index: 100;">
-                    <!-- Auto-sizing rect based on text length (approximate) -->
-                    <rect :x="-(tooltip.text.length * 6.5)/2 - 8" y="-12" :width="tooltip.text.length * 6.5 + 16"
-                        height="20" class="pin-tooltip-bg" />
-                    <text x="0" y="2" class="pin-tooltip-txt">{{ tooltip.text }}</text>
-                </g>
-
-            </svg>
         </div>
     </div>
 
@@ -826,6 +939,24 @@
                     voltageSetting: 5.0,
                     currentLimitSetting: 1.0,
                     isExploded: false,
+
+                    // Oscilloscope & Generator
+                    osc: {
+                        run: true,
+                        timeDiv: 3,
+                        history: [],
+                        ch1: { show: true, name: 'CLK', color: '#facc15' }, // yellow
+                        ch2: { show: true, name: 'LAT', color: '#4ade80' }, // green
+                        ch3: { show: true, name: 'DAT', color: '#c084fc' }, // purple
+                        ch4: { show: true, name: 'Q0', color: '#60a5fa' },  // blue
+                        funcGen: {
+                            on: false,
+                            freq: 5,
+                            duty: 50,
+                            target: 'CLK'
+                        }
+                    },
+                    osc_internalState: false,
 
                     wiringSteps: [
                         { id: 1, title: 'Nối Điện Cấp Nguồn Breadboard' },
@@ -930,6 +1061,11 @@
                         this.triggerExplosion();
                     }
                 }, 400);
+
+                // Hardware sampling & function generator loop (100Hz = 10ms)
+                setInterval(() => {
+                    this.tickOscilloscope();
+                }, 10);
             },
             methods: {
                 triggerExplosion() {
@@ -976,6 +1112,146 @@
                     }
                 },
                 releaseLatch() { this.latBtnOn = false; },
+
+                // Oscilloscope & Generator Methods
+                toggleFuncGen() {
+                    this.osc.funcGen.on = !this.osc.funcGen.on;
+                    if (!this.osc.funcGen.on) {
+                        // Release target if it was held high
+                        if (this.osc_internalState) {
+                            this.osc_internalState = false;
+                            if (this.osc.funcGen.target === 'CLK') this.releaseClock();
+                            else if (this.osc.funcGen.target === 'LAT') this.releaseLatch();
+                            else if (this.osc.funcGen.target === 'DAT') this.releaseData();
+                        }
+                    }
+                },
+                tickOscilloscope() {
+                    if (this.isExploded) {
+                        if (this.osc.funcGen.on) this.toggleFuncGen();
+                        return;
+                    }
+
+                    // FuncGen Logic
+                    if (this.osc.funcGen.on) {
+                        let now = performance.now();
+                        let periodMs = 1000 / this.osc.funcGen.freq;
+                        let onMs = periodMs * (this.osc.funcGen.duty / 100);
+                        let timeInPeriod = now % periodMs;
+                        let isHigh = timeInPeriod < onMs;
+
+                        if (isHigh && !this.osc_internalState) {
+                            this.osc_internalState = true;
+                            if (this.osc.funcGen.target === 'CLK') this.pressClock();
+                            else if (this.osc.funcGen.target === 'LAT') this.pressLatch();
+                            else if (this.osc.funcGen.target === 'DAT') this.pressData();
+                        } else if (!isHigh && this.osc_internalState) {
+                            this.osc_internalState = false;
+                            if (this.osc.funcGen.target === 'CLK') this.releaseClock();
+                            else if (this.osc.funcGen.target === 'LAT') this.releaseLatch();
+                            else if (this.osc.funcGen.target === 'DAT') this.releaseData();
+                        }
+                    }
+
+                    // Sampling
+                    if (this.osc.run) {
+                        this.osc.history.push({
+                            ch1: this.clkBtnOn,
+                            ch2: this.latBtnOn,
+                            ch3: this.dataBtnOn,
+                            ch4: (this.getShiftBits[15].v) !== 0 // Q0 output (IC1's Q0 is on index 15 of getShiftBits)
+                        });
+                        // Max history size
+                        if (this.osc.history.length > 2000) {
+                            this.osc.history.shift();
+                        }
+                    }
+                },
+                clearOsc() {
+                    this.osc.history = [];
+                },
+                drawOscilloscope() {
+                    requestAnimationFrame(this.drawOscilloscope);
+
+                    let c = document.getElementById('oscCanvas');
+                    if (!c) return;
+
+                    const rect = c.getBoundingClientRect();
+                    const W = Math.floor(rect.width);
+                    const H = Math.floor(rect.height);
+                    if (c.width !== W || c.height !== H) {
+                        c.width = W;
+                        c.height = H;
+                    }
+
+                    if (!this.oscCtx) this.oscCtx = c.getContext('2d', { alpha: false });
+                    const ctx = this.oscCtx;
+
+                    // Background
+                    ctx.fillStyle = '#050505';
+                    ctx.fillRect(0, 0, W, H);
+
+                    // Grid
+                    ctx.strokeStyle = '#0f3310';
+                    ctx.lineWidth = 1;
+                    const gridSz = 40;
+                    ctx.beginPath();
+                    for (let i = 0; i < W; i += gridSz) { ctx.moveTo(i, 0); ctx.lineTo(i, H); }
+                    for (let i = 0; i < H; i += gridSz) { ctx.moveTo(0, i); ctx.lineTo(W, i); }
+                    ctx.stroke();
+
+                    // Draw channels
+                    let data = this.osc.history;
+                    if (data.length < 2) return;
+
+                    const drawChannel = (chKey, cfg, index) => {
+                        if (!cfg.show) return;
+                        ctx.strokeStyle = cfg.color;
+                        ctx.lineWidth = 2;
+
+                        let stripH = H / 4;
+                        let baseY = H - (index * stripH);
+                        let topY = baseY - (stripH * 0.8) + 5;
+                        let amplitude = baseY - topY;
+
+                        ctx.beginPath();
+                        let gapX = this.osc.timeDiv;
+                        let startX = W;
+
+                        for (let i = data.length - 1; i >= 0; i--) {
+                            let v = data[i][chKey] ? 1 : 0;
+                            let y = baseY - (v * amplitude);
+
+                            if (i === data.length - 1) ctx.moveTo(startX, y);
+                            else {
+                                let prevV = data[i + 1][chKey] ? 1 : 0;
+                                let prevY = baseY - (prevV * amplitude);
+                                if (prevY !== y) {
+                                    ctx.lineTo(startX, y); // vertical
+                                }
+                                ctx.lineTo(startX - gapX, y); // horizontal
+                            }
+                            startX -= gapX;
+                            if (startX < 0) break;
+                        }
+                        ctx.stroke();
+
+                        // Reference Line (0V)
+                        ctx.strokeStyle = cfg.color + '40'; // transparent
+                        ctx.lineWidth = 1;
+                        ctx.setLineDash([2, 4]);
+                        ctx.beginPath();
+                        ctx.moveTo(0, baseY);
+                        ctx.lineTo(W, baseY);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+                    };
+
+                    drawChannel('ch1', this.osc.ch1, 3);
+                    drawChannel('ch2', this.osc.ch2, 2);
+                    drawChannel('ch3', this.osc.ch3, 1);
+                    drawChannel('ch4', this.osc.ch4, 0);
+                },
 
                 pressBtnFromCanvas(name) {
                     if (name === 'DATA') this.pressData();
@@ -1459,6 +1735,7 @@
                 if (this.viewMode === '3d') {
                     setTimeout(() => { this.init3D(); }, 100);
                 }
+                this.drawOscilloscope();
             },
             watch: {
                 // Watchers moved to main Vue component above
