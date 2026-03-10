@@ -235,6 +235,98 @@
         .wire-inactive {
             opacity: 0.2;
         }
+
+        /* Explosion Effect */
+        .explosion-overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 50;
+            background: radial-gradient(circle, rgba(255, 100, 0, 0.8) 0%, rgba(200, 0, 0, 0.4) 40%, rgba(0, 0, 0, 0.9) 100%);
+            animation: explode-flash 0.5s ease-out forwards;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+
+        @keyframes explode-flash {
+            0% {
+                opacity: 0;
+                transform: scale(0.8);
+                filter: brightness(1) contrast(1);
+            }
+
+            10% {
+                opacity: 1;
+                transform: scale(1.1);
+                filter: brightness(2) contrast(1.5);
+            }
+
+            30% {
+                opacity: 0.8;
+                transform: scale(1);
+                filter: brightness(1.5) contrast(1.2);
+            }
+
+            100% {
+                opacity: 0.9;
+                transform: scale(1);
+                filter: brightness(1) contrast(1);
+            }
+        }
+
+        .smoke-particle {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            background: radial-gradient(circle, rgba(50, 50, 50, 0.8) 0%, rgba(20, 20, 20, 0) 70%);
+            border-radius: 50%;
+            animation: smoke-rise 3s ease-out infinite;
+            opacity: 0;
+        }
+
+        @keyframes smoke-rise {
+            0% {
+                transform: translateY(0) scale(0.5);
+                opacity: 0.8;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+
+            100% {
+                transform: translateY(-200px) scale(2);
+                opacity: 0;
+            }
+        }
+
+        .shake-animation {
+            animation: chaotic-shake 0.1s infinite;
+        }
+
+        @keyframes chaotic-shake {
+            0% {
+                transform: translate(0, 0) rotate(0deg);
+            }
+
+            25% {
+                transform: translate(3px, -3px) rotate(1deg);
+            }
+
+            50% {
+                transform: translate(-3px, 3px) rotate(-1deg);
+            }
+
+            75% {
+                transform: translate(-3px, -3px) rotate(1deg);
+            }
+
+            100% {
+                transform: translate(3px, 3px) rotate(-1deg);
+            }
+        }
     </style>
 </head>
 
@@ -251,35 +343,72 @@
                 bố trí trên 2 Breadboard với các điện trở cách li rõ ràng.</p>
 
             <!-- Điện áp & Dòng điện -->
-            <div
+            <div <div
                 class="bg-gray-950 rounded-lg p-4 mb-6 border-2 border-slate-700 shadow-2xl relative overflow-hidden flex flex-col items-center">
                 <div class="absolute inset-0 bg-blue-500/5 pointer-events-none"></div>
+
                 <div class="w-full flex justify-between items-center mb-3">
                     <h2 class="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Máy Cấp Nguồn DC</h2>
-                    <div
-                        class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse">
-                    </div>
+                    <div class="w-2 h-2 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse"
+                        :class="isExploded ? 'bg-red-600' : 'bg-emerald-500'"></div>
                 </div>
-                <div class="flex w-full justify-between items-center gap-3">
+
+                <div class="flex w-full justify-between items-center gap-3 mb-4">
                     <!-- Voltage Display -->
                     <div
-                        class="flex-1 bg-black border border-slate-800 rounded p-2 flex flex-col justify-center items-center shadow-[inset_0_0_15px_rgba(0,0,0,1)]">
+                        class="relative flex-1 bg-black border border-slate-800 rounded p-2 flex flex-col justify-center items-center shadow-[inset_0_0_15px_rgba(0,0,0,1)]">
                         <span class="text-[9px] text-slate-600 font-bold mb-1 tracking-widest">VOLTAGE</span>
-                        <div
-                            class="font-mono text-xl sm:text-2xl text-red-500 font-bold tracking-wider drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]">
-                            {{ voltageDisplay }}<span class="text-xs text-red-600 ml-1">V</span>
+                        <div class="font-mono text-xl sm:text-2xl font-bold tracking-wider transition-colors"
+                            :class="isExploded ? 'text-gray-600 drop-shadow-none' : (voltageSetting > 5.5 ? 'text-red-600 drop-shadow-[0_0_8px_rgba(220,38,38,0.9)] animate-pulse' : 'text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]')">
+                            {{ isExploded ? 'ERR' : voltageDisplay }}<span class="text-xs ml-1"
+                                :class="isExploded ? 'text-gray-700' : 'text-red-600'">V</span>
                         </div>
+                        <div v-if="voltageSetting > 5.2 && !isExploded"
+                            class="absolute top-1 right-1 text-[8px] text-red-500 font-bold animate-ping">⚠ OVER</div>
                     </div>
                     <!-- Current Display -->
                     <div
                         class="flex-1 bg-black border border-slate-800 rounded p-2 flex flex-col justify-center items-center shadow-[inset_0_0_15px_rgba(0,0,0,1)]">
-                        <span class="text-[9px] text-slate-600 font-bold mb-1 tracking-widest">CURRENT</span>
-                        <div
-                            class="font-mono text-xl sm:text-2xl text-yellow-400 font-bold tracking-wider drop-shadow-[0_0_8px_rgba(250,204,21,0.8)]">
-                            {{ currentDraw.toFixed(3) }}<span class="text-xs text-yellow-600 ml-1">A</span>
+                        <span class="text-[9px] text-slate-600 font-bold mb-1 tracking-widest">CURRENT (MAX
+                            {{currentLimitSetting.toFixed(1)}}A)</span>
+                        <div class="font-mono text-xl sm:text-2xl font-bold tracking-wider transition-colors"
+                            :class="isExploded ? 'text-gray-600 drop-shadow-none' : 'text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.8)]'">
+                            {{ isExploded ? '0.00' : currentDraw.toFixed(3) }}<span class="text-xs ml-1"
+                                :class="isExploded ? 'text-gray-700' : 'text-yellow-600'">A</span>
                         </div>
                     </div>
                 </div>
+
+                <!-- Adjustment Controls -->
+                <div class="w-full space-y-3 bg-slate-900/80 p-3 rounded border border-slate-800">
+                    <div class="flex flex-col">
+                        <div class="flex justify-between text-[10px] text-slate-400 mb-1">
+                            <span>ĐIỀU CHỈNH VOLTAGE (V)</span>
+                            <span class="font-bold text-slate-200">{{voltageSetting.toFixed(1)}} V</span>
+                        </div>
+                        <input type="range" min="0" max="12" step="0.1" v-model.number="voltageSetting"
+                            class="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-red-500"
+                            :disabled="isExploded">
+                        <div class="flex justify-between text-[8px] text-slate-500 mt-1">
+                            <span>0V</span><span>Chuẩn: 5V</span><span class="text-red-500">Max: 12V</span>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col">
+                        <div class="flex justify-between text-[10px] text-slate-400 mb-1">
+                            <span>GIỚI HẠN CURRENT (A)</span>
+                            <span class="font-bold text-slate-200">{{currentLimitSetting.toFixed(1)}} A</span>
+                        </div>
+                        <input type="range" min="0.1" max="2.0" step="0.1" v-model.number="currentLimitSetting"
+                            class="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-yellow-400"
+                            :disabled="isExploded">
+                    </div>
+                </div>
+
+                <button v-if="isExploded" @click="resetCircuit"
+                    class="mt-4 px-4 py-2 w-full bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded shadow-[0_0_10px_rgba(220,38,38,0.5)] transition-colors">
+                    SỬA CHỮA / KHỞI ĐỘNG LẠI MẠCH
+                </button>
             </div>
 
             <div class="bg-slate-900 rounded-lg p-5 mb-6 border border-slate-700 shadow-inner">
@@ -397,7 +526,21 @@
 
         <!-- Right panel: Canvas Diagram -->
         <div class="w-full xl:w-3/4 overflow-x-auto rounded-xl flex items-center justify-center bg-slate-900 border border-slate-700 shadow-inner p-4 relative"
-            style="min-height: 800px;">
+            style="min-height: 800px;" :class="{'shake-animation': voltageSetting > 6 && !isExploded}">
+
+            <!-- Explosion Overlay -->
+            <div v-if="isExploded" class="explosion-overlay">
+                <div style="font-size: 80px; filter: drop-shadow(0 0 20px #ff0000);">💥 BÙM! 💥</div>
+                <div class="text-2xl font-bold text-white mt-4 tracking-widest uppercase"
+                    style="text-shadow: 2px 2px 4px #000;">Quá Áp! IC & LED Đã Cháy</div>
+                <div class="text-sm text-yellow-300 mt-2">74HC595 chỉ chịu được tối đa ~6.0V. Bạn đã cấp
+                    {{voltageSetting.toFixed(1)}}V!</div>
+
+                <div class="smoke-particle" style="left: 30%; top: 40%; animation-delay: 0.1s;"></div>
+                <div class="smoke-particle"
+                    style="left: 50%; top: 50%; animation-delay: 0.5s; width: 150px; height: 150px;"></div>
+                <div class="smoke-particle" style="left: 70%; top: 30%; animation-delay: 0.3s;"></div>
+            </div>
 
             <!-- 3D Canvas Container -->
             <div id="canvas3d" class="absolute inset-0 bg-slate-800 rounded-xl overflow-hidden shadow-xl"
@@ -465,7 +608,8 @@
                 </g>
 
                 <!-- Components (ICs, Resistors, LEDs, Buttons) -->
-                <g id="components">
+                <g id="components"
+                    :style="isExploded ? 'filter: grayscale(100%) brightness(0.3) contrast(1.5) drop-shadow(0 0 5px rgba(0,0,0,1));' : ''">
                     <template v-for="comp in components" :key="comp.id">
                         <g :style="{ opacity: isCompActive(comp.step) ? 1 : 0.3, transition: 'opacity 0.3s' }">
 
@@ -679,6 +823,10 @@
                     shiftReg: 0x0000,
                     latchReg: 0x0000,
 
+                    voltageSetting: 5.0,
+                    currentLimitSetting: 1.0,
+                    isExploded: false,
+
                     wiringSteps: [
                         { id: 1, title: 'Nối Điện Cấp Nguồn Breadboard' },
                         { id: 2, title: 'Nối Nguồn IC 74HC595 (b1)' },
@@ -707,14 +855,20 @@
                     return bits;
                 },
                 currentDraw() {
-                    let baseI = 0.015;
+                    if (this.isExploded) return 0;
+                    // Ohm's law scaling roughly based on voltage setting
+                    let vMultiplier = this.voltageSetting / 5.0;
+                    if (vMultiplier < 0) vMultiplier = 0;
+
+                    let baseI = 0.015 * vMultiplier;
                     let activeSegments = 0;
                     for (let i = 0; i < 16; i++) {
                         if (((this.latchReg >> i) & 1) === 0) {
                             activeSegments++;
                         }
                     }
-                    let segmentI = activeSegments * 0.0136;
+                    // Current per segment increases linearly with voltage (assuming simple resistor model)
+                    let segmentI = activeSegments * 0.0136 * vMultiplier;
 
                     let noise = 0;
                     if (this.timeTick % 3 === 0) {
@@ -726,25 +880,88 @@
                     let btnI = (this.dataBtnOn || this.clkBtnOn || this.latBtnOn) ? 0.005 : 0;
 
                     let c = baseI + segmentI + noise + btnI;
+
+                    // Cap current at currentLimitSetting
+                    if (c > this.currentLimitSetting) {
+                        c = this.currentLimitSetting;
+                    }
+
                     return Math.max(0, c);
                 },
                 voltageDisplay() {
-                    let v = 5.00 - (this.currentDraw * 0.05);
+                    if (this.isExploded) return "0.00";
+                    // Display voltage from setting, minus slight droop from high current draw
+                    let v = this.voltageSetting - (this.currentDraw * 0.2); // 0.2 ohms internal assumed resistance
                     if (this.timeTick % 5 === 0) v -= 0.01;
-                    return v.toFixed(2);
+                    return Math.max(0, v).toFixed(2);
+                }
+            },
+            watch: {
+                voltageSetting(newV) {
+                    if (newV > 7.0 && !this.isExploded) {
+                        // Instant explosion at 7V
+                        this.triggerExplosion();
+                    } else if (newV > 5.5 && !this.isExploded) {
+                        // Chance to explode over time if > 5.5V
+                        if (Math.random() > 0.8) {
+                            this.triggerExplosion();
+                        }
+                    }
+                },
+                viewMode(newV) {
+                    if (newV === '3d') {
+                        setTimeout(() => { this.init3D(); }, 100);
+                    }
+                },
+                latchReg() {
+                    if (this.viewMode === '3d') {
+                        this.update3DLEDs();
+                    }
                 }
             },
             created() {
                 this.initHardware();
                 setInterval(() => {
+                    if (this.isExploded) return;
                     this.timeTick++;
+
+                    // Continuous check for overvoltage damage over time
+                    if (this.voltageSetting > 6.0 && Math.random() > 0.95) {
+                        this.triggerExplosion();
+                    }
                 }, 400);
             },
             methods: {
+                triggerExplosion() {
+                    this.isExploded = true;
+                    this.shiftReg = 0xFFFF; // All LEDs turn off (logic 1 for CA)
+                    this.latchReg = 0xFFFF;
+                    this.dataBtnOn = false;
+                    this.clkBtnOn = false;
+                    this.latBtnOn = false;
+
+                    // If in 3D mode, update rendering
+                    if (this.viewMode === '3d' && this.scene3d) {
+                        this.components.forEach(comp => {
+                            if (comp.type === 'IC' || comp.type === 'LED') {
+                                // Add burn mark meshes or change colors in 3D if desired
+                                // Simplest way is let update3DLEDs handle off state
+                            }
+                        });
+                        this.update3DLEDs();
+                    }
+                },
+                resetCircuit() {
+                    this.isExploded = false;
+                    this.voltageSetting = 5.0;
+                    this.shiftReg = 0x0000;
+                    this.latchReg = 0x0000;
+                },
                 // Interactive Methods
-                pressData() { this.dataVal ^= 1; this.dataBtnOn = true; },
+                pressData() { if (this.isExploded) return; this.dataVal ^= 1; this.dataBtnOn = true; },
                 releaseData() { this.dataBtnOn = false; },
                 pressClock() {
+                    if (this.isExploded) return;
                     if (!this.clkBtnOn) {
                         this.clkBtnOn = true;
                         this.shiftReg = ((this.shiftReg << 1) | this.dataVal) & 0xFFFF;
@@ -752,6 +969,7 @@
                 },
                 releaseClock() { this.clkBtnOn = false; },
                 pressLatch() {
+                    if (this.isExploded) return;
                     if (!this.latBtnOn) {
                         this.latBtnOn = true;
                         this.latchReg = this.shiftReg;
@@ -1243,16 +1461,7 @@
                 }
             },
             watch: {
-                viewMode(newV) {
-                    if (newV === '3d') {
-                        setTimeout(() => { this.init3D(); }, 100);
-                    }
-                },
-                latchReg() {
-                    if (this.viewMode === '3d') {
-                        this.update3DLEDs();
-                    }
-                }
+                // Watchers moved to main Vue component above
             }
         };
 
