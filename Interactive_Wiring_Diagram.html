@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mô Phỏng Mạch 2x 74HC595 + 2x LED 7 Đoạn</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Thêm Three.js & OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Verdana, sans-serif;
+            background-color: #1e293b;
+            color: #f8fafc;
+        }
+
+        svg {
+            background-color: #fefce8;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            border-radius: 12px;
+        }
+
+        /* Breadboard SVG Elements */
+        .bb-bg {
+            fill: #fefce8;
+            stroke: #e5e7eb;
+            stroke-width: 2px;
+            rx: 8;
+        }
+
+        .bb-trench {
+            fill: #e5e7eb;
+            rx: 3;
+        }
+
+        .hole {
+            fill: #fff;
+            stroke: #d1d5db;
+            stroke-width: 1px;
+        }
+
+        .rail-plus {
+            stroke: #ef4444;
+            stroke-width: 3;
+            opacity: 0.7;
+        }
+
+        .rail-minus {
+            stroke: #3b82f6;
+            stroke-width: 3;
+            opacity: 0.7;
+        }
+
+        .bb-label {
+            font-size: 9px;
+            fill: #9ca3af;
+            font-family: monospace;
+            text-anchor: middle;
+            font-weight: bold;
+        }
+
+        /* Components */
+        .ic-body {
+            fill: #111827;
+            rx: 4;
+            stroke: #000;
+            stroke-width: 1;
+        }
+
+        .ic-pin {
+            fill: #9ca3af;
+        }
+
+        .ic-notch {
+            fill: #374151;
+        }
+
+        .ic-text {
+            fill: #e5e7eb;
+            font-size: 11px;
+            font-weight: bold;
+            font-family: monospace;
+            text-anchor: middle;
+        }
+
+        .led-body {
+            fill: #262626;
+            rx: 4;
+            stroke: #000;
+        }
+
+        .led-pin {
+            fill: #9ca3af;
+        }
+
+        .led-seg-off {
+            fill: #450a0a;
+            opacity: 0.3;
+        }
+
+        .btn-body {
+            fill: #f3f4f6;
+            stroke: #9ca3af;
+            stroke-width: 1px;
+            rx: 3;
+            cursor: pointer;
+        }
+
+        .btn-inner {
+            fill: #1f2937;
+            rx: 8;
+            transition: fill 0.1s;
+        }
+
+        .btn-body:hover .btn-inner {
+            fill: #374151;
+        }
+
+        .btn-body:active .btn-inner {
+            fill: #ef4444;
+        }
+
+        /* Red glow when pressed */
+        .btn-text {
+            font-size: 10px;
+            font-weight: bold;
+            fill: #4b5563;
+            text-anchor: middle;
+            pointer-events: none;
+        }
+
+        .res-body {
+            fill: #d4a373;
+            rx: 3;
+            stroke: #b08d57;
+            stroke-width: 1;
+        }
+
+        .res-wire {
+            stroke: #9ca3af;
+            stroke-width: 2;
+            stroke-linecap: round;
+        }
+
+        /* Tooltip */
+        .pin-tooltip-bg {
+            fill: rgba(0, 0, 0, 0.8);
+            rx: 4;
+            pointer-events: none;
+        }
+
+        .pin-tooltip-txt {
+            fill: #fff;
+            font-size: 11px;
+            font-weight: bold;
+            font-family: monospace;
+            text-anchor: middle;
+            pointer-events: none;
+        }
+
+        /* Wires */
+        .wire {
+            fill: none;
+            stroke-width: 3.5;
+            stroke-linecap: round;
+            filter: drop-shadow(1px 2px 2px rgba(0, 0, 0, 0.3));
+            transition: opacity 0.3s;
+        }
+
+        .wire:hover {
+            stroke-width: 5;
+            cursor: crosshair;
+        }
+
+        .wire-vcc {
+            stroke: #dc2626;
+        }
+
+        .wire-gnd {
+            stroke: #2563eb;
+        }
+
+        .wire-clk {
+            stroke: #eab308;
+        }
+
+        .wire-lat {
+            stroke: #22c55e;
+        }
+
+        .wire-dat {
+            stroke: #a855f7;
+        }
+
+        .wire-casc {
+            stroke: #ec4899;
+        }
+
+        /* Cascade Q7' to DS */
+        .wire-q0 {
+            stroke: #8b4513;
+        }
+
+        .wire-q1 {
+            stroke: #dc2626;
+        }
+
+        .wire-q2 {
+            stroke: #ea580c;
+        }
+
+        .wire-q3 {
+            stroke: #eab308;
+        }
+
+        .wire-q4 {
+            stroke: #16a34a;
+        }
+
+        .wire-q5 {
+            stroke: #2563eb;
+        }
+
+        .wire-q6 {
+            stroke: #7e22ce;
+        }
+
+        .wire-q7 {
+            stroke: #475569;
+        }
+
+        .wire-inactive {
+            opacity: 0.2;
+        }
+    </style>
+</head>
+
+<body id="app" class="min-h-screen flex flex-col pt-4">
+
+    <div class="w-full mx-auto px-4 flex-1 flex flex-col xl:flex-row gap-6 pb-12">
+        <!-- Left panel: Controls and UI -->
+        <div class="w-full xl:w-1/4 bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-xl flex flex-col">
+            <h1
+                class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400 mb-2">
+                Simulator 74HC595</h1>
+            <p class="text-slate-400 text-sm mb-6">Mô phỏng tương tác 2 IC ghi dịch và 2 LED 7 Đoạn (Anode Chung / Dương
+                Chung). Mạch
+                bố trí trên 2 Breadboard với các điện trở cách li rõ ràng.</p>
+
+            <!-- Điện áp & Dòng điện -->
+            <div
+                class="bg-gray-950 rounded-lg p-4 mb-6 border-2 border-slate-700 shadow-2xl relative overflow-hidden flex flex-col items-center">
+                <div class="absolute inset-0 bg-blue-500/5 pointer-events-none"></div>
+                <div class="w-full flex justify-between items-center mb-3">
+                    <h2 class="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Máy Cấp Nguồn DC</h2>
+                    <div
+                        class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse">
+                    </div>
+                </div>
+                <div class="flex w-full justify-between items-center gap-3">
+                    <!-- Voltage Display -->
+                    <div
+                        class="flex-1 bg-black border border-slate-800 rounded p-2 flex flex-col justify-center items-center shadow-[inset_0_0_15px_rgba(0,0,0,1)]">
+                        <span class="text-[9px] text-slate-600 font-bold mb-1 tracking-widest">VOLTAGE</span>
+                        <div
+                            class="font-mono text-xl sm:text-2xl text-red-500 font-bold tracking-wider drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]">
+                            {{ voltageDisplay }}<span class="text-xs text-red-600 ml-1">V</span>
+                        </div>
+                    </div>
+                    <!-- Current Display -->
+                    <div
+                        class="flex-1 bg-black border border-slate-800 rounded p-2 flex flex-col justify-center items-center shadow-[inset_0_0_15px_rgba(0,0,0,1)]">
+                        <span class="text-[9px] text-slate-600 font-bold mb-1 tracking-widest">CURRENT</span>
+                        <div
+                            class="font-mono text-xl sm:text-2xl text-yellow-400 font-bold tracking-wider drop-shadow-[0_0_8px_rgba(250,204,21,0.8)]">
+                            {{ currentDraw.toFixed(3) }}<span class="text-xs text-yellow-600 ml-1">A</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-slate-900 rounded-lg p-5 mb-6 border border-slate-700 shadow-inner">
+                <h2 class="text-xs uppercase tracking-wider text-slate-500 font-bold mb-3">Tương Tác Bảng Điều Khiển
+                </h2>
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-semibold text-purple-400">INPUT DATA (1/0)</span>
+                        <button @mousedown="pressData" @mouseup="releaseData" @mouseleave="releaseData"
+                            :class="['px-5 py-2 rounded-full font-bold shadow-lg transition-transform active:scale-95 select-none', dataVal ? 'bg-purple-500 text-white shadow-purple-500/50' : 'bg-slate-700 text-slate-300']">
+                            {{ dataVal ? 'BIT 1' : 'BIT 0' }}
+                        </button>
+                    </div>
+
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-semibold text-yellow-400">CLOCK PULSE</span>
+                        <button @mousedown="pressClock" @mouseup="releaseClock" @mouseleave="releaseClock"
+                            class="px-5 py-2 bg-yellow-600 hover:bg-yellow-500 text-white rounded-full font-bold shadow-lg shadow-yellow-600/30 transition-transform active:scale-95 select-none">
+                            DỊCH BIT
+                        </button>
+                    </div>
+
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-semibold text-green-400">LATCH OUTPUT</span>
+                        <button @mousedown="pressLatch" @mouseup="releaseLatch" @mouseleave="releaseLatch"
+                            class="px-5 py-2 bg-green-600 hover:bg-green-500 text-white rounded-full font-bold shadow-lg shadow-green-600/30 transition-transform active:scale-95 select-none">
+                            CHỐT
+                        </button>
+                    </div>
+
+                    <div class="flex items-center justify-between border-t border-slate-700 pt-4 mt-2">
+                        <span class="text-sm font-semibold text-blue-400">KIỂU DÂY (2D)</span>
+                        <button @click="wireStyle = wireStyle === 'curve' ? 'ortho' : 'curve'"
+                            class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-full font-bold shadow-lg shadow-blue-600/30 transition-transform active:scale-95 select-none text-xs">
+                            {{ wireStyle === 'curve' ? 'DÂY CONG 〰' : 'DÂY VUÔNG ⎍' }}
+                        </button>
+                    </div>
+
+                    <div class="flex items-center justify-between border-t border-slate-700 pt-4 mt-2">
+                        <span class="text-sm font-semibold text-teal-400">GÓC NHÌN</span>
+                        <button @click="toggleViewMode"
+                            class="px-5 py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-full font-bold shadow-lg shadow-teal-600/30 transition-transform active:scale-95 select-none text-xs">
+                            {{ viewMode === '2d' ? 'MẠCH THỰC TẾ 3D' : 'SƠ ĐỒ 2D' }}
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mt-6 border-t border-slate-700 pt-4">
+                    <div class="text-xs text-slate-400 mb-2 truncate font-mono">Shift Register (Internal):</div>
+                    <!-- IC2 (High 8 bits, Q15..Q8) -->
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="text-[10px] text-slate-500 w-12 text-right">IC2:</span>
+                        <div class="flex gap-1">
+                            <span v-for="bit in getShiftBits.slice(0, 8)" :key="'s'+bit.i"
+                                :class="['w-5 h-5 flex items-center justify-center text-[10px] rounded font-bold', bit.v ? 'bg-emerald-500 text-white shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-700 text-slate-500']">
+                                {{bit.v}}
+                            </span>
+                        </div>
+                    </div>
+                    <!-- IC1 (Low 8 bits, Q7..Q0) -->
+                    <div class="flex items-center gap-2 relative">
+                        <span class="text-[10px] text-slate-500 w-12 text-right">IC1:</span>
+                        <div class="flex gap-1">
+                            <span v-for="bit in getShiftBits.slice(8, 16)" :key="'s'+bit.i"
+                                :class="['w-5 h-5 flex items-center justify-center text-[10px] rounded font-bold', bit.v ? 'bg-emerald-500 text-white shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-700 text-slate-500']">
+                                {{bit.v}}
+                            </span>
+                        </div>
+                        <span class="text-[10px] text-purple-400 font-bold ml-1 animate-pulse">⬅ IN</span>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <div class="text-xs text-slate-400 mb-2 truncate font-mono">Latch Register (Output):</div>
+                    <!-- IC2 (High 8 bits, Q15..Q8) -->
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="text-[10px] text-slate-500 w-12 text-right">LED2:</span>
+                        <div class="flex gap-1">
+                            <span v-for="bit in getLatchBits.slice(0, 8)" :key="'l'+bit.i"
+                                :class="['w-5 h-5 flex items-center justify-center text-[10px] rounded font-bold', bit.v ? 'bg-emerald-500 text-white shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-700 text-slate-500']">
+                                {{bit.v}}
+                            </span>
+                        </div>
+                    </div>
+                    <!-- IC1 (Low 8 bits, Q7..Q0) -->
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] text-slate-500 w-12 text-right">LED1:</span>
+                        <div class="flex gap-1">
+                            <span v-for="bit in getLatchBits.slice(8, 16)" :key="'l'+bit.i"
+                                :class="['w-5 h-5 flex items-center justify-center text-[10px] rounded font-bold', bit.v ? 'bg-emerald-500 text-white shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-700 text-slate-500']">
+                                {{bit.v}}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                <h3
+                    class="text-xs uppercase tracking-wider text-slate-500 font-bold mb-3 border-b border-slate-700 pb-2">
+                    Hướng Dẫn Bước Đi Dây</h3>
+                <div class="space-y-2">
+                    <button v-for="(step, index) in wiringSteps" :key="index" @click="activeStep = index"
+                        :class="['w-full text-left px-3 py-2 rounded text-sm transition-colors border', 
+                                 activeStep === index ? 'bg-blue-900/50 border-blue-500 text-blue-200 shadow-inner' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700']">
+                        <span class="font-bold mr-1">{{index + 1}}.</span> {{ step.title }}
+                    </button>
+                    <button
+                        class="w-full text-center px-3 py-2 rounded border border-slate-600 bg-slate-700 hover:bg-slate-600 mt-2 text-white font-semibold text-sm transition-colors"
+                        @click="activeStep = -1">
+                        Hiện Toàn Bộ Sợi Dây
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right panel: Canvas Diagram -->
+        <div class="w-full xl:w-3/4 overflow-x-auto rounded-xl flex items-center justify-center bg-slate-900 border border-slate-700 shadow-inner p-4 relative"
+            style="min-height: 800px;">
+
+            <!-- 3D Canvas Container -->
+            <div id="canvas3d" class="absolute inset-0 bg-slate-800 rounded-xl overflow-hidden shadow-xl"
+                :class="{ 'opacity-0 pointer-events-none': viewMode === '2d', 'opacity-100': viewMode === '3d' }"
+                style="transition: opacity 0.3s; z-index: 5;">
+                <!-- Overlay helper text -->
+                <div v-show="viewMode === '3d'"
+                    class="absolute bottom-4 left-4 text-xs text-white bg-black/50 px-3 py-1 rounded pointer-events-none">
+                    Click kéo để xoay | Cuộn chuột để zoom | Kéo chuột phải để di chuyển
+                </div>
+            </div>
+
+            <!-- SVGRenderer -->
+            <svg :width="svgW" :height="svgH" class="block max-w-none transform transition-transform origin-top-left"
+                :class="{ 'opacity-100': viewMode === '2d', 'opacity-0 pointer-events-none': viewMode === '3d' }"
+                style="background-color: #f1f5f9; transition: opacity 0.3s; z-index: 1;">
+                <!-- Breadboards rendering -->
+                <g v-for="bb in boards" :key="bb.id" :transform="`translate(${bb.x}, ${bb.y})`">
+                    <!-- Breadboard background -->
+                    <rect x="0" y="0" :width="bbW" :height="bbH" class="bb-bg" />
+
+                    <!-- Power rails -->
+                    <!-- Top Power -->
+                    <line :x1="margin" :y1="getLHoY('T+')" :x2="bbW - margin" :y2="getLHoY('T+')" class="rail-plus" />
+                    <line :x1="margin" :y1="getLHoY('T-')" :x2="bbW - margin" :y2="getLHoY('T-')" class="rail-minus" />
+                    <!-- Bottom Power -->
+                    <line :x1="margin" :y1="getLHoY('B+')" :x2="bbW - margin" :y2="getLHoY('B+')" class="rail-plus" />
+                    <line :x1="margin" :y1="getLHoY('B-')" :x2="bbW - margin" :y2="getLHoY('B-')" class="rail-minus" />
+
+                    <!-- Center Trench -->
+                    <rect :x="margin - 5" :y="getLHoY('E') + dy + 2" :width="bbW - 2*margin + 10" :height="10"
+                        class="bb-trench" />
+
+                    <!-- Holes -->
+                    <template v-for="c in COLS" :key="c">
+                        <!-- Power Holes Top -->
+                        <circle :cx="getLHoX(c)" :cy="getLHoY('T+')" r="3.5" class="hole" />
+                        <circle :cx="getLHoX(c)" :cy="getLHoY('T-')" r="3.5" class="hole" />
+
+                        <!-- Signal Holes A-E -->
+                        <circle v-for="r in ['A','B','C','D','E']" :key="'T'+r+c" :cx="getLHoX(c)" :cy="getLHoY(r)"
+                            r="3.5" class="hole" />
+                        <!-- Signal Holes F-J -->
+                        <circle v-for="r in ['F','G','H','I','J']" :key="'B'+r+c" :cx="getLHoX(c)" :cy="getLHoY(r)"
+                            r="3.5" class="hole" />
+
+                        <!-- Power Holes Bottom -->
+                        <circle :cx="getLHoX(c)" :cy="getLHoY('B+')" r="3.5" class="hole" />
+                        <circle :cx="getLHoX(c)" :cy="getLHoY('B-')" r="3.5" class="hole" />
+
+                        <!-- Column Numbers -->
+                        <text v-if="c%5===0 || c===1" :x="getLHoX(c)" :y="getLHoY('A')-10" class="bb-label">{{c}}</text>
+                        <text v-if="c%5===0 || c===1" :x="getLHoX(c)" :y="getLHoY('J')+16" class="bb-label">{{c}}</text>
+                    </template>
+
+                    <!-- Row Letters -->
+                    <template v-for="r in ['A','B','C','D','E', 'F','G','H','I','J']" :key="'L'+r">
+                        <text :x="margin/2" :y="getLHoY(r)+3" class="bb-label">{{r}}</text>
+                        <text :x="bbW - margin/2" :y="getLHoY(r)+3" class="bb-label">{{r}}</text>
+                    </template>
+                    <text :x="margin/2" :y="getLHoY('T+') + 3" class="bb-label fill-red-600">+</text>
+                    <text :x="margin/2" :y="getLHoY('T-') + 3" class="bb-label fill-blue-600">-</text>
+                    <text :x="margin/2" :y="getLHoY('B+') + 3" class="bb-label fill-red-600">+</text>
+                    <text :x="margin/2" :y="getLHoY('B-') + 3" class="bb-label fill-blue-600">-</text>
+                </g>
+
+                <!-- Components (ICs, Resistors, LEDs, Buttons) -->
+                <g id="components">
+                    <template v-for="comp in components" :key="comp.id">
+                        <g :style="{ opacity: isCompActive(comp.step) ? 1 : 0.3, transition: 'opacity 0.3s' }">
+
+                            <!-- Resistor -->
+                            <g v-if="comp.type === 'RES'"
+                                :transform="`translate(${getPos(comp.s).x}, ${getPos(comp.s).y}) rotate(${getResAngle(comp)})`">
+                                <line x1="0" y1="0" :x2="getResLen(comp)" y2="0" class="res-wire" />
+                                <g :transform="`translate(${getResLen(comp)/2 - 12}, -4)`">
+                                    <rect x="0" y="0" width="24" height="8" class="res-body" />
+                                    <rect x="3" y="0" width="3" height="8" :fill="comp.bands[0]" />
+                                    <rect x="8" y="0" width="3" height="8" :fill="comp.bands[1]" />
+                                    <rect x="13" y="0" width="3" height="8" :fill="comp.bands[2]" />
+                                    <rect x="19" y="0" width="2" height="8" fill="#b8860b" />
+                                </g>
+                                <text :x="getResLen(comp)/2" y="-8" class="text-[8px] fill-slate-500 font-bold"
+                                    text-anchor="middle"
+                                    :transform="getResAngle(comp) > 90 || getResAngle(comp) < -90 ? `rotate(180 ${getResLen(comp)/2} -8)` : ''">{{comp.ohm}}</text>
+                            </g>
+
+                            <!-- IC -->
+                            <g v-else-if="comp.type === 'IC'">
+                                <rect :x="getPos(comp.b + '_E_' + comp.colStart).x - dx/2 - 2"
+                                    :y="getPos(comp.b + '_E_' + comp.colStart).y - 6"
+                                    :width="(comp.colEnd - comp.colStart)*dx + dx + 4" :height="dy + 26"
+                                    class="ic-body" />
+
+                                <!-- Notch -->
+                                <circle :cx="getPos(comp.b + '_E_' + comp.colStart).x - dx/2 + 4"
+                                    :cy="(getPos(comp.b + '_E_' + comp.colStart).y + getPos(comp.b + '_F_' + comp.colStart).y)/2"
+                                    r="4" class="ic-notch" />
+
+                                <!-- Pins Top -->
+                                <rect v-for="(c, i) in Array.from({length: 8}, (_,i) => comp.colStart + i)"
+                                    :key="'pT'+c" :x="getPos(comp.b + '_E_' + c).x - 3"
+                                    :y="getPos(comp.b + '_E_' + c).y - 12" width="6" height="12" class="ic-pin"
+                                    @mouseover="showTooltip($event, getICPinName(16 - i), getPos(comp.b + '_E_' + c).x, getPos(comp.b + '_E_' + c).y - 15)"
+                                    @mouseleave="hideTooltip" cursor="help" />
+                                <!-- Pins Bottom -->
+                                <rect v-for="(c, i) in Array.from({length: 8}, (_,i) => comp.colStart + i)"
+                                    :key="'pB'+c" :x="getPos(comp.b + '_F_' + c).x - 3"
+                                    :y="getPos(comp.b + '_F_' + c).y + 0" width="6" height="12" class="ic-pin"
+                                    @mouseover="showTooltip($event, getICPinName(i + 1), getPos(comp.b + '_F_' + c).x, getPos(comp.b + '_F_' + c).y + 15)"
+                                    @mouseleave="hideTooltip" cursor="help" />
+
+                                <text :x="getPos(comp.b + '_E_' + (comp.colStart + 3.5)).x"
+                                    :y="getPos(comp.b + '_E_' + comp.colStart).y + 12"
+                                    class="ic-text">{{comp.name}}</text>
+                                <text :x="getPos(comp.b + '_E_' + (comp.colStart + 3.5)).x"
+                                    :y="getPos(comp.b + '_E_' + comp.colStart).y + 24" class="ic-text"
+                                    style="font-size: 8px; fill: #9ca3af;">74HC595</text>
+                            </g>
+
+                            <!-- LED 7 Segment -->
+                            <g v-else-if="comp.type === 'LED'">
+                                <!-- Body spans 5 columns, placed across trench row C to H -->
+                                <rect :x="getPos(comp.b + '_C_' + comp.colStart).x - dx/2 - 4"
+                                    :y="getPos(comp.b + '_C_' + comp.colStart).y - 8" :width="4*dx + dx + 8"
+                                    :height="5*dy + 16" class="led-body" />
+
+                                <!-- Pins Top -->
+                                <rect v-for="(c, i) in Array.from({length: 5}, (_,i) => comp.colStart + i)"
+                                    :key="'lT'+c" :x="getPos(comp.b + '_C_' + c).x - 3"
+                                    :y="getPos(comp.b + '_C_' + c).y - 12" width="6" height="12" class="ic-pin"
+                                    @mouseover="showTooltip($event, getLEDPinName('top', i), getPos(comp.b + '_C_' + c).x, getPos(comp.b + '_C_' + c).y - 15)"
+                                    @mouseleave="hideTooltip" cursor="help" />
+                                <!-- Pins Bot -->
+                                <rect v-for="(c, i) in Array.from({length: 5}, (_,i) => comp.colStart + i)"
+                                    :key="'lB'+c" :x="getPos(comp.b + '_H_' + c).x - 3"
+                                    :y="getPos(comp.b + '_H_' + c).y" width="6" height="12" class="ic-pin"
+                                    @mouseover="showTooltip($event, getLEDPinName('bot', i), getPos(comp.b + '_H_' + c).x, getPos(comp.b + '_H_' + c).y + 15)"
+                                    @mouseleave="hideTooltip" cursor="help" />
+
+                                <!-- 7 Segment Paths Mapping inside LED body -->
+                                <g
+                                    :transform="`translate(${getPos(comp.b + '_C_' + comp.colStart).x - 4}, ${getPos(comp.b + '_C_' + comp.colStart).y + 4})`">
+                                    <!-- Base dims: W = 56, H = 70. Segments roughly scaled -->
+                                    <!-- A (Top) -->
+                                    <polygon points="18,10 22,6 38,6 42,10 38,14 22,14"
+                                        :fill="isSegOn(comp.ledIdx, 1) ? '#ef4444' : '#450a0a'" />
+                                    <!-- B (Top-Right) -->
+                                    <polygon points="43,11 47,15 47,31 43,35 39,31 39,15"
+                                        :fill="isSegOn(comp.ledIdx, 2) ? '#ef4444' : '#450a0a'" />
+                                    <!-- C (Bot-Right) -->
+                                    <polygon points="43,37 47,41 47,57 43,61 39,57 39,41"
+                                        :fill="isSegOn(comp.ledIdx, 4) ? '#ef4444' : '#450a0a'" />
+                                    <!-- D (Bottom) -->
+                                    <polygon points="18,62 22,58 38,58 42,62 38,66 22,66"
+                                        :fill="isSegOn(comp.ledIdx, 8) ? '#ef4444' : '#450a0a'" />
+                                    <!-- E (Bot-Left) -->
+                                    <polygon points="17,37 21,41 21,57 17,61 13,57 13,41"
+                                        :fill="isSegOn(comp.ledIdx, 16) ? '#ef4444' : '#450a0a'" />
+                                    <!-- F (Top-Left) -->
+                                    <polygon points="17,11 21,15 21,31 17,35 13,31 13,15"
+                                        :fill="isSegOn(comp.ledIdx, 32) ? '#ef4444' : '#450a0a'" />
+                                    <!-- G (Middle) -->
+                                    <polygon points="18,36 22,32 38,32 42,36 38,40 22,40"
+                                        :fill="isSegOn(comp.ledIdx, 64) ? '#ef4444' : '#450a0a'" />
+                                    <!-- DP (Dot) -->
+                                    <circle cx="50" cy="62" r="4"
+                                        :fill="isSegOn(comp.ledIdx, 128) ? '#ef4444' : '#450a0a'" />
+                                </g>
+                            </g>
+
+                            <!-- Button (Tactile Switch) -->
+                            <g v-else-if="comp.type === 'BTN'" @mousedown="pressBtnFromCanvas(comp.name)"
+                                @mouseup="releaseBtnFromCanvas(comp.name)"
+                                @mouseleave="releaseBtnFromCanvas(comp.name)">
+
+                                <rect :x="getPos(comp.b + '_E_' + comp.colStart).x - dx/2 - 2"
+                                    :y="getPos(comp.b + '_E_' + comp.colStart).y - 5" :width="2*dx + dx + 4"
+                                    :height="dy + 24" class="btn-body" />
+
+                                <circle :cx="getPos(comp.b + '_E_' + comp.colStart).x + dx/2"
+                                    :cy="(getPos(comp.b + '_E_' + comp.colStart).y + getPos(comp.b + '_F_' + comp.colStart).y)/2"
+                                    r="8" class="btn-inner" :fill="isBtnPressed(comp.name) ? '#dc2626' : '#1f2937'" />
+
+                                <!-- Pins 4 Corners -->
+                                <rect :x="getPos(comp.b + '_E_' + comp.colStart).x - 3"
+                                    :y="getPos(comp.b + '_E_' + comp.colStart).y - 10" width="6" height="10"
+                                    class="ic-pin"
+                                    @mouseover="showTooltip($event, 'Nối Chung 1', getPos(comp.b + '_E_' + comp.colStart).x, getPos(comp.b + '_E_' + comp.colStart).y - 15)"
+                                    @mouseleave="hideTooltip" cursor="help" />
+                                <rect :x="getPos(comp.b + '_E_' + (comp.colStart+2)).x - 3"
+                                    :y="getPos(comp.b + '_E_' + (comp.colStart+2)).y - 10" width="6" height="10"
+                                    class="ic-pin"
+                                    @mouseover="showTooltip($event, 'Nối Chung 1', getPos(comp.b + '_E_' + (comp.colStart+2)).x, getPos(comp.b + '_E_' + (comp.colStart+2)).y - 15)"
+                                    @mouseleave="hideTooltip" cursor="help" />
+                                <rect :x="getPos(comp.b + '_F_' + comp.colStart).x - 3"
+                                    :y="getPos(comp.b + '_F_' + comp.colStart).y + 0" width="6" height="10"
+                                    class="ic-pin"
+                                    @mouseover="showTooltip($event, 'Nối Chung 2', getPos(comp.b + '_F_' + comp.colStart).x, getPos(comp.b + '_F_' + comp.colStart).y + 15)"
+                                    @mouseleave="hideTooltip" cursor="help" />
+                                <rect :x="getPos(comp.b + '_F_' + (comp.colStart+2)).x - 3"
+                                    :y="getPos(comp.b + '_F_' + (comp.colStart+2)).y + 0" width="6" height="10"
+                                    class="ic-pin"
+                                    @mouseover="showTooltip($event, 'Nối Chung 2', getPos(comp.b + '_F_' + (comp.colStart+2)).x, getPos(comp.b + '_F_' + (comp.colStart+2)).y + 15)"
+                                    @mouseleave="hideTooltip" cursor="help" />
+
+                                <text :x="getPos(comp.b + '_E_' + comp.colStart).x + dx/2"
+                                    :y="getPos(comp.b + '_E_' + comp.colStart).y - 15"
+                                    class="btn-text">{{comp.name}}</text>
+                            </g>
+
+                        </g>
+                    </template>
+                </g>
+
+                <!-- Wires Routing -->
+                <g id="wires">
+                    <template v-for="(wire, i) in wires" :key="'w'+i">
+                        <path :d="getWirePath(wire)"
+                            :class="['wire', `wire-${wire.color}`, isWireActive(wire.step) ? '' : 'wire-inactive']"
+                            :title="wire.desc">
+                            <title>{{wire.desc}}</title>
+                        </path>
+                    </template>
+                </g>
+
+                <!-- Tooltip Popup Overlay -->
+                <g v-if="tooltip.show" :transform="`translate(${tooltip.x}, ${tooltip.y})`" style="z-index: 100;">
+                    <!-- Auto-sizing rect based on text length (approximate) -->
+                    <rect :x="-(tooltip.text.length * 6.5)/2 - 8" y="-12" :width="tooltip.text.length * 6.5 + 16"
+                        height="20" class="pin-tooltip-bg" />
+                    <text x="0" y="2" class="pin-tooltip-txt">{{ tooltip.text }}</text>
+                </g>
+
+            </svg>
+        </div>
+    </div>
+
+    <script>
+        const HOLE_DX = 14;
+        const HOLE_DY = 14;
+        const COLS = 60;
+        const ROW_MAP = {
+            'T+': 0, 'T-': 1,
+            'A': 3, 'B': 4, 'C': 5, 'D': 6, 'E': 7,
+            'F': 9, 'G': 10, 'H': 11, 'I': 12, 'J': 13,
+            'B+': 15, 'B-': 16
+        };
+        const MARGIN_X = 40;
+        const MARGIN_Y = 40;
+
+        const BOARDS = [
+            { id: 'b1', x: 20, y: 20 },
+            { id: 'b2', x: 20, y: 340 }
+        ];
+
+        const { createApp } = Vue;
+
+        const App = {
+            data() {
+                return {
+                    COLS, dx: HOLE_DX, dy: HOLE_DY, margin: MARGIN_X,
+                    boards: BOARDS,
+                    bbW: MARGIN_X * 2 + (COLS - 1) * HOLE_DX,
+                    bbH: MARGIN_Y * 2 + 16 * HOLE_DY,
+                    svgW: MARGIN_X * 2 + (COLS - 1) * HOLE_DX + 40,
+                    svgH: 340 + MARGIN_Y * 2 + 16 * HOLE_DY + 40,
+
+                    viewMode: '2d', // 2d | 3d
+                    activeStep: -1,
+                    wireStyle: 'curve', // curve | ortho
+                    tooltip: { show: false, text: '', x: 0, y: 0 },
+
+                    // Simulation Logic
+                    dataVal: 0,
+                    dataBtnOn: false,
+                    clkBtnOn: false,
+                    latBtnOn: false,
+                    shiftReg: 0x0000,
+                    latchReg: 0x0000,
+
+                    wiringSteps: [
+                        { id: 1, title: 'Nối Điện Cấp Nguồn Breadboard' },
+                        { id: 2, title: 'Nối Nguồn IC 74HC595 (b1)' },
+                        { id: 3, title: 'Lắp Nút Nhấn & Điện Trở 1k (b1)' },
+                        { id: 4, title: 'Nối Nguồn LED & Lắp Điện Trở 220 Ohm (b2)' },
+                        { id: 5, title: 'Đi Dây Điều Khiển Nút -> IC' },
+                        { id: 6, title: 'Đi Dây Dữ Liệu IC1 (Q0..Q7) -> Điện Trở LED 1' },
+                        { id: 7, title: 'Đi Dây Dữ Liệu IC2 (Q0..Q7) -> Điện Trở LED 2' },
+                        { id: 8, title: 'Nối Dây Từ Điện Trở -> Chân LED 1 & 2' }
+                    ],
+
+                    components: [],
+                    wires: [],
+                    timeTick: 0
+                };
+            },
+            computed: {
+                getShiftBits() {
+                    let bits = [];
+                    for (let i = 15; i >= 0; i--) bits.push({ i, v: (this.shiftReg >> i) & 1 });
+                    return bits;
+                },
+                getLatchBits() {
+                    let bits = [];
+                    for (let i = 15; i >= 0; i--) bits.push({ i, v: (this.latchReg >> i) & 1 });
+                    return bits;
+                },
+                currentDraw() {
+                    let baseI = 0.015;
+                    let activeSegments = 0;
+                    for (let i = 0; i < 16; i++) {
+                        if (((this.latchReg >> i) & 1) === 0) {
+                            activeSegments++;
+                        }
+                    }
+                    let segmentI = activeSegments * 0.0136;
+
+                    let noise = 0;
+                    if (this.timeTick % 3 === 0) {
+                        noise = 0.001;
+                    } else if (this.timeTick % 3 === 1) {
+                        noise = -0.002;
+                    }
+
+                    let btnI = (this.dataBtnOn || this.clkBtnOn || this.latBtnOn) ? 0.005 : 0;
+
+                    let c = baseI + segmentI + noise + btnI;
+                    return Math.max(0, c);
+                },
+                voltageDisplay() {
+                    let v = 5.00 - (this.currentDraw * 0.05);
+                    if (this.timeTick % 5 === 0) v -= 0.01;
+                    return v.toFixed(2);
+                }
+            },
+            created() {
+                this.initHardware();
+                setInterval(() => {
+                    this.timeTick++;
+                }, 400);
+            },
+            methods: {
+                // Interactive Methods
+                pressData() { this.dataVal ^= 1; this.dataBtnOn = true; },
+                releaseData() { this.dataBtnOn = false; },
+                pressClock() {
+                    if (!this.clkBtnOn) {
+                        this.clkBtnOn = true;
+                        this.shiftReg = ((this.shiftReg << 1) | this.dataVal) & 0xFFFF;
+                    }
+                },
+                releaseClock() { this.clkBtnOn = false; },
+                pressLatch() {
+                    if (!this.latBtnOn) {
+                        this.latBtnOn = true;
+                        this.latchReg = this.shiftReg;
+                    }
+                },
+                releaseLatch() { this.latBtnOn = false; },
+
+                pressBtnFromCanvas(name) {
+                    if (name === 'DATA') this.pressData();
+                    else if (name === 'CLOCK') this.pressClock();
+                    else if (name === 'LATCH') this.pressLatch();
+                },
+                releaseBtnFromCanvas(name) {
+                    if (name === 'DATA') this.releaseData();
+                    else if (name === 'CLOCK') this.releaseClock();
+                    else if (name === 'LATCH') this.releaseLatch();
+                },
+                isBtnPressed(name) {
+                    if (name === 'DATA') return this.dataBtnOn;
+                    if (name === 'CLOCK') return this.clkBtnOn;
+                    if (name === 'LATCH') return this.latBtnOn;
+                    return false;
+                },
+
+                // LED 7 Segment Common Anode logic
+                // segment index mapping matching 74HC595 Q0..Q7
+                // Q0=A(1), Q1=B(2), Q2=C(4), Q3=D(8), Q4=E(16), Q5=F(32), Q6=G(64), Q7=DP(128)
+                isSegOn(ledIdx, mask) {
+                    let val = ledIdx === 1 ? (this.latchReg & 0xFF) : ((this.latchReg >> 8) & 0xFF);
+                    // Common Anode: 0 is ON, 1 is OFF.
+                    return (val & mask) === 0;
+                },
+
+                // Drawing Helpers
+                showTooltip(e, text, x, y) {
+                    this.tooltip = { show: true, text, x, y };
+                },
+                hideTooltip() {
+                    this.tooltip.show = false;
+                },
+                getICPinName(pinOut) {
+                    // 74HC595 Pinout
+                    const names = {
+                        1: "1 (Q1)", 2: "2 (Q2)", 3: "3 (Q3)", 4: "4 (Q4)", 5: "5 (Q5)", 6: "6 (Q6)", 7: "7 (Q7)", 8: "8 (GND)",
+                        9: "9 (Q7' DOUT)", 10: "10 (MR_L/Reset)", 11: "11 (SHCP/Clock)", 12: "12 (STCP/Latch)",
+                        13: "13 (OE_L/Enable)", 14: "14 (DS/Data In)", 15: "15 (Q0)", 16: "16 (VCC)"
+                    };
+                    return `Pin ${names[pinOut]}`;
+                },
+                getLEDPinName(side, index) {
+                    // 5161BS (Common Anode 10 pins). Top from left: G, F, COM, A, B. Bot from left: E, D, COM, C, DP
+                    if (side === 'top') {
+                        const t = ["G", "F", "COM (VCC)", "A", "B"];
+                        return `Pin: ${t[index]}`;
+                    } else {
+                        const b = ["E", "D", "COM (VCC)", "C", "DP"];
+                        return `Pin: ${b[index]}`;
+                    }
+                },
+                getLHoX(col) { return this.margin + (col - 1) * this.dx; },
+                getLHoY(row) { return this.margin + ROW_MAP[row] * this.dy; },
+                getPos(holeID) {
+                    let [b, r, c] = holeID.split('_');
+                    let board = this.boards.find(brd => brd.id === b);
+                    return {
+                        x: board.x + this.margin + (parseInt(c) - 1) * this.dx,
+                        y: board.y + this.margin + ROW_MAP[r] * this.dy
+                    };
+                },
+                getWirePath(w) {
+                    let p1 = this.getPos(w.s);
+                    let p2 = this.getPos(w.e);
+
+                    if (this.wireStyle === 'curve') {
+                        // Original Curved Logic
+                        if (Math.abs(p1.x - p2.x) < 5 && Math.abs(p1.y - p2.y) < 40) {
+                            return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`;
+                        }
+                        if (w.s.split('_')[0] !== w.e.split('_')[0]) {
+                            return `M ${p1.x} ${p1.y} C ${p1.x} ${p1.y + 100}, ${p2.x} ${p2.y - 100}, ${p2.x} ${p2.y}`;
+                        }
+                        let ctrlY1 = p1.y + (w.s.includes('T') ? -30 : (w.s.includes('I') || w.s.includes('J') || w.s.includes('B') ? 30 : -30));
+                        let ctrlY2 = p2.y + (w.e.includes('T') || w.e.includes('A') || w.e.includes('B') ? -30 : 30);
+                        if (w.s.includes('T+') && w.e.includes('A')) return `M ${p1.x} ${p1.y} Q ${p1.x + 15} ${p1.y - 15} ${p2.x} ${p2.y}`;
+                        if (w.s.includes('T-') && w.e.includes('B')) return `M ${p1.x} ${p1.y} Q ${p1.x - 15} ${p1.y - 15} ${p2.x} ${p2.y}`;
+                        return `M ${p1.x} ${p1.y} C ${p1.x} ${ctrlY1}, ${p2.x} ${ctrlY2}, ${p2.x} ${p2.y}`;
+                    } else {
+                        // Orthogonal Logic
+                        if (Math.abs(p1.x - p2.x) < 5 || Math.abs(p1.y - p2.y) < 5) {
+                            return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`;
+                        }
+                        if (w.s.split('_')[0] !== w.e.split('_')[0]) {
+                            let midY = (p1.y + p2.y) / 2;
+                            let outX = Math.min(p1.x, p2.x) - 40;
+                            return `M ${p1.x} ${p1.y} 
+                                    L ${p1.x} ${p1.y + (p1.y < p2.y ? 20 : -20)}
+                                    Q ${p1.x} ${p1.y + (p1.y < p2.y ? 30 : -30)} ${p1.x - 10} ${p1.y + (p1.y < p2.y ? 30 : -30)}
+                                    L ${outX + 10} ${p1.y + (p1.y < p2.y ? 30 : -30)}
+                                    Q ${outX} ${p1.y + (p1.y < p2.y ? 30 : -30)} ${outX} ${p1.y + (p1.y < p2.y ? 40 : -40)}
+                                    L ${outX} ${p2.y - (p1.y < p2.y ? 40 : -40)}
+                                    Q ${outX} ${p2.y - (p1.y < p2.y ? 30 : -30)} ${outX + 10} ${p2.y - (p1.y < p2.y ? 30 : -30)}
+                                    L ${p2.x - 10} ${p2.y - (p1.y < p2.y ? 30 : -30)}
+                                    Q ${p2.x} ${p2.y - (p1.y < p2.y ? 30 : -30)} ${p2.x} ${p2.y - (p1.y < p2.y ? 20 : -20)}
+                                    L ${p2.x} ${p2.y}`;
+                        }
+                        let dir1 = p1.y > p2.y ? -1 : 1;
+                        let yOffset = 20 * dir1;
+                        if (w.s.includes('T') || w.e.includes('T')) yOffset = -20;
+                        if (w.s.includes('B') || w.e.includes('B')) yOffset = 20;
+                        let r = 10;
+                        let yRoute = p1.y + yOffset;
+                        return `M ${p1.x} ${p1.y}
+                                L ${p1.x} ${yRoute - Math.sign(yOffset) * r}
+                                Q ${p1.x} ${yRoute} ${p1.x + Math.sign(p2.x - p1.x) * r} ${yRoute}
+                                L ${p2.x - Math.sign(p2.x - p1.x) * r} ${yRoute}
+                                Q ${p2.x} ${yRoute} ${p2.x} ${yRoute + Math.sign(p2.y - yRoute) * r}
+                                L ${p2.x} ${p2.y}`;
+                    }
+                },
+
+                getResLen(res) {
+                    let p1 = this.getPos(res.s);
+                    let p2 = this.getPos(res.e);
+                    return Math.hypot(p2.x - p1.x, p2.y - p1.y);
+                },
+                getResAngle(res) {
+                    let p1 = this.getPos(res.s);
+                    let p2 = this.getPos(res.e);
+                    return Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180 / Math.PI;
+                },
+
+                isWireActive(step) {
+                    return this.activeStep === -1 || step === (this.activeStep + 1);
+                },
+                isCompActive(stepArray) {
+                    if (this.activeStep === -1) return true;
+                    return stepArray.includes(this.activeStep + 1);
+                },
+
+                initHardware() {
+                    let c = [];
+                    let w = [];
+                    const addW = (s, e, color, step, desc) => w.push({ s, e, color, step, desc });
+                    const addC = (comp) => c.push(comp);
+
+                    // COMPONENTS
+                    // Buttons (1k resistors included)
+                    addC({ id: 'BTN1', type: 'BTN', name: 'DATA', b: 'b1', colStart: 5, step: [3, 5] });
+                    addC({ id: 'RES_BN1', type: 'RES', s: 'b1_J_5', e: 'b1_B-_5', bands: ['#8b4513', '#000000', '#dc2626'], ohm: '1kΩ', step: [3] }); // 1k
+
+                    addC({ id: 'BTN2', type: 'BTN', name: 'CLOCK', b: 'b1', colStart: 15, step: [3, 5] });
+                    addC({ id: 'RES_BN2', type: 'RES', s: 'b1_J_15', e: 'b1_B-_15', bands: ['#8b4513', '#000000', '#dc2626'], ohm: '1kΩ', step: [3] });
+
+                    addC({ id: 'BTN3', type: 'BTN', name: 'LATCH', b: 'b1', colStart: 25, step: [3, 5] });
+                    addC({ id: 'RES_BN3', type: 'RES', s: 'b1_J_25', e: 'b1_B-_25', bands: ['#8b4513', '#000000', '#dc2626'], ohm: '1kΩ', step: [3] });
+
+                    // ICs
+                    addC({ id: 'IC1', type: 'IC', name: 'U1', b: 'b1', colStart: 35, colEnd: 42, step: [2, 5, 6] });
+                    addC({ id: 'IC2', type: 'IC', name: 'U2', b: 'b1', colStart: 48, colEnd: 55, step: [2, 5, 7] });
+
+                    // LEDs
+                    addC({ id: 'LED1', type: 'LED', ledIdx: 1, name: 'LED1', b: 'b2', colStart: 20, step: [4, 8] });
+                    addC({ id: 'LED2', type: 'LED', ledIdx: 2, name: 'LED2', b: 'b2', colStart: 45, step: [4, 8] });
+
+                    // Resistors for LED1 (Cols 10..17 on b2, 220 ohm: Red, Red, Brown)
+                    for (let i = 0; i < 8; i++) {
+                        addC({ id: `R1_${i}`, type: 'RES', s: `b2_E_${10 + i}`, e: `b2_F_${10 + i}`, bands: ['#dc2626', '#dc2626', '#8b4513'], ohm: '220Ω', step: [4, 6, 8] });
+                    }
+                    // Resistors for LED2 (Cols 35..42 on b2)
+                    for (let i = 0; i < 8; i++) {
+                        addC({ id: `R2_${i}`, type: 'RES', s: `b2_E_${35 + i}`, e: `b2_F_${35 + i}`, bands: ['#dc2626', '#dc2626', '#8b4513'], ohm: '220Ω', step: [4, 7, 8] });
+                    }
+
+                    // WIRES
+                    // Step 1: Power Rails
+                    addW('b1_T+_1', 'b1_B+_1', 'vcc', 1, 'Link Rail VCC b1');
+                    addW('b1_T-_2', 'b1_B-_2', 'gnd', 1, 'Link Rail GND b1');
+                    addW('b2_T+_1', 'b2_B+_1', 'vcc', 1, 'Link Rail VCC b2');
+                    addW('b2_T-_2', 'b2_B-_2', 'gnd', 1, 'Link Rail GND b2');
+                    addW('b1_B+_60', 'b2_T+_60', 'vcc', 1, 'Link B1 -> B2 VCC');
+                    addW('b1_B-_59', 'b2_T-_59', 'gnd', 1, 'Link B1 -> B2 GND');
+
+                    // Step 2: IC Power
+                    addW('b1_T+_35', 'b1_A_35', 'vcc', 2, 'IC1 VCC (Pin 16)');
+                    addW('b1_B-_42', 'b1_J_42', 'gnd', 2, 'IC1 GND (Pin 8)');
+                    addW('b1_T+_41', 'b1_A_41', 'vcc', 2, 'IC1 MR to VCC');
+                    addW('b1_T-_38', 'b1_B_38', 'gnd', 2, 'IC1 OE to GND');
+
+                    addW('b1_T+_48', 'b1_A_48', 'vcc', 2, 'IC2 VCC (Pin 16)');
+                    addW('b1_B-_55', 'b1_J_55', 'gnd', 2, 'IC2 GND (Pin 8)');
+                    addW('b1_T+_54', 'b1_A_54', 'vcc', 2, 'IC2 MR to VCC');
+                    addW('b1_T-_51', 'b1_B_51', 'gnd', 2, 'IC2 OE to GND');
+
+                    // Step 3: Button VCC
+                    addW('b1_T+_5', 'b1_A_5', 'vcc', 3, 'BTN1 VCC');
+                    addW('b1_T+_15', 'b1_A_15', 'vcc', 3, 'BTN2 VCC');
+                    addW('b1_T+_25', 'b1_A_25', 'vcc', 3, 'BTN3 VCC');
+
+                    // Step 4: LED Power (CA)
+                    addW('b2_T+_22', 'b2_A_22', 'vcc', 4, 'LED1 COM Top (A22 to VCC)');
+                    addW('b2_B+_22', 'b2_J_22', 'vcc', 4, 'LED1 COM Bot (J22 to VCC)');
+
+                    addW('b2_T+_47', 'b2_A_47', 'vcc', 4, 'LED2 COM Top (A47 to VCC)');
+                    addW('b2_B+_47', 'b2_J_47', 'vcc', 4, 'LED2 COM Bot (J47 to VCC)');
+
+                    // Step 5: Control Wiring
+                    // Data: b1_I_5 -> IC1_DS(37_E) = b1_C_37
+                    addW('b1_I_5', 'b1_C_37', 'dat', 5, 'BTN Data -> IC1 DS (Pin 14)');
+                    // Clock: b1_I_15 -> IC1_SHCP(40_E) = b1_B_40
+                    addW('b1_I_15', 'b1_B_40', 'clk', 5, 'BTN Clock -> IC1 SHCP (Pin 11)');
+                    // Latch: b1_I_25 -> IC1_STCP(39_E) = b1_B_39
+                    addW('b1_I_25', 'b1_B_39', 'lat', 5, 'BTN Latch -> IC1 STCP (Pin 12)');
+                    // Cascading Clock and Latch to IC2
+                    addW('b1_C_40', 'b1_D_53', 'clk', 5, 'IC1 SHCP -> IC2 SHCP (Pin 11)'); // IC2_SHCP = 53_E
+                    addW('b1_C_39', 'b1_D_52', 'lat', 5, 'IC1 STCP -> IC2 STCP (Pin 12)'); // IC2_STCP = 52_E
+                    // Data Cascade IC1_Q7' (42_E) -> IC2_DS (50_E)
+                    addW('b1_D_42', 'b1_C_50', 'casc', 5, "IC1 Q7' (Pin 9) -> IC2 DS (Pin 14)");
+
+                    // Step 6: IC1 to Resistors (b1 -> b2)
+                    let q1Colors = ['q0', 'q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7'];
+                    addW('b1_D_36', 'b2_A_10', q1Colors[0], 6, 'IC1 Q0 -> R_A'); // Q0 = 36_E
+                    addW('b1_H_35', 'b2_A_11', q1Colors[1], 6, 'IC1 Q1 -> R_B'); // Q1 = 35_F
+                    addW('b1_G_36', 'b2_A_12', q1Colors[2], 6, 'IC1 Q2 -> R_C'); // Q2 = 36_F
+                    addW('b1_G_37', 'b2_A_13', q1Colors[3], 6, 'IC1 Q3 -> R_D'); // Q3 = 37_F
+                    addW('b1_G_38', 'b2_A_14', q1Colors[4], 6, 'IC1 Q4 -> R_E'); // Q4 = 38_F
+                    addW('b1_G_39', 'b2_A_15', q1Colors[5], 6, 'IC1 Q5 -> R_F'); // Q5 = 39_F
+                    addW('b1_G_40', 'b2_A_16', q1Colors[6], 6, 'IC1 Q6 -> R_G'); // Q6 = 40_F
+                    addW('b1_G_41', 'b2_A_17', q1Colors[7], 6, 'IC1 Q7 -> R_DP'); // Q7 = 41_F
+
+                    // Step 7: IC2 to Resistors (b1 -> b2)
+                    addW('b1_D_49', 'b2_A_35', q1Colors[0], 7, 'IC2 Q0 -> R_A'); // Q0 = 49_E
+                    addW('b1_H_48', 'b2_A_36', q1Colors[1], 7, 'IC2 Q1 -> R_B'); // Q1 = 48_F
+                    addW('b1_G_49', 'b2_A_37', q1Colors[2], 7, 'IC2 Q2 -> R_C'); // Q2 = 49_F
+                    addW('b1_G_50', 'b2_A_38', q1Colors[3], 7, 'IC2 Q3 -> R_D'); // Q3 = 50_F
+                    addW('b1_G_51', 'b2_A_39', q1Colors[4], 7, 'IC2 Q4 -> R_E'); // Q4 = 51_F
+                    addW('b1_G_52', 'b2_A_40', q1Colors[5], 7, 'IC2 Q5 -> R_F'); // Q5 = 52_F
+                    addW('b1_G_53', 'b2_A_41', q1Colors[6], 7, 'IC2 Q6 -> R_G'); // Q6 = 53_F
+                    addW('b1_G_54', 'b2_A_42', q1Colors[7], 7, 'IC2 Q7 -> R_DP'); // Q7 = 54_F
+
+                    // Step 8: Resistors to LED (on b2)
+                    // LED1 Pins: Top(G=20, F=21, COM=22, A=23, B=24), Bot(E=20, D=21, COM=22, C=23, DP=24)
+                    addW('b2_J_10', 'b2_B_23', q1Colors[0], 8, 'R_A -> LED A (Top 23)');
+                    addW('b2_J_11', 'b2_B_24', q1Colors[1], 8, 'R_B -> LED B (Top 24)');
+                    addW('b2_J_12', 'b2_I_23', q1Colors[2], 8, 'R_C -> LED C (Bot 23)');
+                    addW('b2_J_13', 'b2_I_21', q1Colors[3], 8, 'R_D -> LED D (Bot 21)');
+                    addW('b2_J_14', 'b2_I_20', q1Colors[4], 8, 'R_E -> LED E (Bot 20)');
+                    addW('b2_J_15', 'b2_B_21', q1Colors[5], 8, 'R_F -> LED F (Top 21)');
+                    addW('b2_J_16', 'b2_B_20', q1Colors[6], 8, 'R_G -> LED G (Top 20)');
+                    addW('b2_J_17', 'b2_I_24', q1Colors[7], 8, 'R_DP -> LED DP (Bot 24)');
+
+                    // LED2 Pins: Top(G=45, F=46, COM=47, A=48, B=49), Bot(E=45, D=46, COM=47, C=48, DP=49)
+                    addW('b2_J_35', 'b2_B_48', q1Colors[0], 8, 'R_A -> LED A (Top 48)');
+                    addW('b2_J_36', 'b2_B_49', q1Colors[1], 8, 'R_B -> LED B (Top 49)');
+                    addW('b2_J_37', 'b2_I_48', q1Colors[2], 8, 'R_C -> LED C (Bot 48)');
+                    addW('b2_J_38', 'b2_I_46', q1Colors[3], 8, 'R_D -> LED D (Bot 46)');
+                    addW('b2_J_39', 'b2_I_45', q1Colors[4], 8, 'R_E -> LED E (Bot 45)');
+                    addW('b2_J_40', 'b2_B_46', q1Colors[5], 8, 'R_F -> LED F (Top 46)');
+                    addW('b2_J_41', 'b2_B_45', q1Colors[6], 8, 'R_G -> LED G (Top 45)');
+                    addW('b2_J_42', 'b2_I_49', q1Colors[7], 8, 'R_DP -> LED DP (Bot 49)');
+
+                    this.components = c;
+                    this.wires = w;
+                },
+
+                // --- 3D PCB LOGIC ---
+                toggleViewMode() {
+                    this.viewMode = this.viewMode === '2d' ? '3d' : '2d';
+                },
+                init3D() {
+                    if (this.renderer3d) return;
+                    const container = document.getElementById('canvas3d');
+                    if (!container) {
+                        console.error("Canvas container not found!");
+                        return;
+                    }
+
+                    const w = container.clientWidth || 800; // fallback if clientWidth is 0
+                    const h = container.clientHeight || 800;
+
+                    const scene = new THREE.Scene();
+                    scene.background = new THREE.Color(0x1e293b);
+
+                    const camera = new THREE.PerspectiveCamera(60, w / h, 1, 3000);
+                    // Center of board is around (450, -200) to push it up
+                    camera.position.set(450, -0, 700);
+
+                    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                    renderer.setSize(w, h);
+                    renderer.setPixelRatio(window.devicePixelRatio);
+                    container.appendChild(renderer.domElement);
+                    this.renderer3d = renderer;
+
+                    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+                    controls.target.set(450, -200, 0);
+                    controls.enableDamping = true;
+                    controls.update();
+
+                    const alight = new THREE.AmbientLight(0xffffff, 0.8);
+                    scene.add(alight);
+                    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
+                    hemiLight.position.set(0, 500, 0);
+                    scene.add(hemiLight);
+                    const dlight = new THREE.DirectionalLight(0xffffff, 0.8);
+                    dlight.position.set(500, 1000, 1000);
+                    scene.add(dlight);
+
+                    // 1. PCB (Green Board) & Holes
+                    const pcbMat = new THREE.MeshStandardMaterial({ color: 0x0a4022, roughness: 0.8, metalness: 0.1 });
+                    const holeGeo = new THREE.CylinderGeometry(2, 2, 10.2, 8);
+                    const holeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+                    const holesMesh = new THREE.InstancedMesh(holeGeo, holeMat, 1680); // 2 boards * 14 rows * 60 cols
+                    let hIdx = 0;
+                    const dummy = new THREE.Object3D();
+                    const bRows = ['T+', 'T-', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'B+', 'B-'];
+
+                    this.boards.forEach(bb => {
+                        const bx = bb.x + this.bbW / 2, by = - (bb.y + this.bbH / 2);
+                        const geom = new THREE.BoxGeometry(this.bbW, this.bbH, 10);
+                        const mesh = new THREE.Mesh(geom, pcbMat);
+                        mesh.position.set(bx, by, -5);
+                        scene.add(mesh);
+
+                        bRows.forEach(r => {
+                            for (let c = 1; c <= 60; c++) {
+                                let p = this.getPos(`${bb.id}_${r}_${c}`);
+                                dummy.position.set(p.x, -p.y, -5);
+                                dummy.rotation.x = Math.PI / 2;
+                                dummy.updateMatrix();
+                                holesMesh.setMatrixAt(hIdx++, dummy.matrix);
+                            }
+                        });
+                    });
+                    scene.add(holesMesh);
+
+                    // 2. Components
+                    const icGeo = new THREE.BoxGeometry(10 * this.dx, 5 * this.dy, 12);
+                    const icMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.6 });
+                    const ledGeo = new THREE.BoxGeometry(6 * this.dx, 8 * this.dy, 15);
+                    const ledMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.6 });
+
+                    this.led3dSegments = { led1: [], led2: [] };
+
+                    this.components.forEach(comp => {
+                        if (comp.type === 'IC') {
+                            const pTopL = this.getPos(comp.b + '_E_' + comp.colStart);
+                            const m = new THREE.Mesh(icGeo, icMat);
+                            m.position.set(pTopL.x + 3.5 * this.dx, -(pTopL.y + 0.5 * this.dy), 6);
+                            scene.add(m);
+                        }
+                        if (comp.type === 'LED') {
+                            const pTopL = this.getPos(comp.b + '_C_' + comp.colStart);
+                            const m = new THREE.Mesh(ledGeo, ledMat);
+                            m.position.set(pTopL.x + 2 * this.dx, -(pTopL.y + 2.5 * this.dy), 7.5);
+                            scene.add(m);
+
+                            // 8 segment planes
+                            const segArr = comp.id === 'LED1' ? this.led3dSegments.led1 : this.led3dSegments.led2;
+                            const segGeoms = [
+                                { i: 0, n: 'A', x: 0, y: 3.2, w: 3.5, h: 1 }, { i: 1, n: 'B', x: 2, y: 1.5, w: 1, h: 3 },
+                                { i: 2, n: 'C', x: 2, y: -2, w: 1, h: 3 }, { i: 3, n: 'D', x: 0, y: -3.8, w: 3.5, h: 1 },
+                                { i: 4, n: 'E', x: -2, y: -2, w: 1, h: 3 }, { i: 5, n: 'F', x: -2, y: 1.5, w: 1, h: 3 },
+                                { i: 6, n: 'G', x: 0, y: -0.3, w: 3.5, h: 1 }, { i: 7, n: 'DP', x: 2.5, y: -3.8, w: 1, h: 1 }
+                            ];
+                            segGeoms.forEach(sg => {
+                                const sGeo = new THREE.PlaneGeometry(sg.w * this.dx * 0.7, sg.h * this.dy * 0.7);
+                                const sMat = new THREE.MeshBasicMaterial({ color: 0x330000 });
+                                const sMesh = new THREE.Mesh(sGeo, sMat);
+                                sMesh.position.set(sg.x * this.dx * 0.35, sg.y * this.dy * 0.35, 7.6);
+                                m.add(sMesh);
+                                segArr.push(sMat);
+                            });
+                        }
+                    });
+
+                    // Buttons
+                    const btnGeo = new THREE.BoxGeometry(4 * this.dx, 3 * this.dy, 8);
+                    const btnMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.5 });
+                    const pushGeo = new THREE.CylinderGeometry(4, 4, 10, 16);
+                    const pushMat = new THREE.MeshStandardMaterial({ color: 0xcc2222, roughness: 0.3 });
+                    [14, 24, 34].forEach(c => {
+                        const p = this.getPos(`b1_D_${c}`);
+                        const m = new THREE.Mesh(btnGeo, btnMat);
+                        m.position.set(p.x + 1.5 * this.dx, -(p.y - 0.5 * this.dy), 4);
+                        const push = new THREE.Mesh(pushGeo, pushMat);
+                        push.position.set(0, 0, 4);
+                        push.rotation.x = Math.PI / 2;
+                        m.add(push);
+                        scene.add(m);
+                    });
+
+                    // 3. Resistors
+                    const resGeo = new THREE.CylinderGeometry(2, 2, 16, 8);
+                    const resMat = new THREE.MeshStandardMaterial({ color: 0xdfb07a, roughness: 0.9, metalness: 0.1 });
+                    if (this.resis) this.resis.forEach(r => {
+                        const p1 = this.getPos(r.s), p2 = this.getPos(r.e);
+                        const m = new THREE.Mesh(resGeo, resMat);
+                        m.position.set((p1.x + p2.x) / 2, -(p1.y + p2.y) / 2, 3);
+                        m.rotation.z = Math.atan2(-(p2.y - p1.y), p2.x - p1.x) - Math.PI / 2;
+                        scene.add(m);
+                    });
+
+                    // 4. Wires (Tubes)
+                    const wireMats = {};
+                    const colorMap = {
+                        'vcc': '#ef4444',
+                        'gnd': '#3b82f6',
+                        'data': '#8b5cf6',
+                        'clock': '#eab308',
+                        'latch': '#22c55e'
+                    };
+                    this.wires.forEach(w => {
+                        let p1 = this.getPos(w.s), p2 = this.getPos(w.e);
+                        let pts = [];
+                        let dir1 = p1.y > p2.y ? -1 : 1;
+                        let yOffset = 20 * dir1;
+                        if (w.s.includes('T') || w.e.includes('T')) yOffset = -20;
+                        if (w.s.includes('B') || w.e.includes('B')) yOffset = 20;
+                        let yRoute = p1.y + yOffset;
+
+                        let zJump = w.s.split('_')[0] !== w.e.split('_')[0] ? 30 : 10;
+
+                        if (w.s.split('_')[0] !== w.e.split('_')[0]) {
+                            let outX = Math.min(p1.x, p2.x) - 40;
+                            pts = [
+                                new THREE.Vector3(p1.x, -p1.y, 0),
+                                new THREE.Vector3(p1.x, -p1.y, zJump),
+                                new THREE.Vector3(outX, -p1.y, zJump),
+                                new THREE.Vector3(outX, -p2.y, zJump),
+                                new THREE.Vector3(p2.x, -p2.y, zJump),
+                                new THREE.Vector3(p2.x, -p2.y, 0)
+                            ];
+                        } else {
+                            pts = [
+                                new THREE.Vector3(p1.x, -p1.y, 0),
+                                new THREE.Vector3(p1.x, -p1.y, zJump),
+                                new THREE.Vector3(p1.x, -yRoute, zJump),
+                                new THREE.Vector3(p2.x, -yRoute, zJump),
+                                new THREE.Vector3(p2.x, -p2.y, zJump),
+                                new THREE.Vector3(p2.x, -p2.y, 0)
+                            ];
+                        }
+
+                        const curve = new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.2);
+                        const tube = new THREE.TubeGeometry(curve, 32, 2.5, 8, false);
+                        let trueColor = colorMap[w.color] || w.color;
+                        if (!wireMats[w.color]) {
+                            wireMats[w.color] = new THREE.MeshStandardMaterial({
+                                color: new THREE.Color(trueColor),
+                                roughness: 0.4,
+                                metalness: 0.1
+                            });
+                        }
+                        const m = new THREE.Mesh(tube, wireMats[w.color]);
+                        scene.add(m);
+                    });
+
+                    this.scene3d = scene;
+                    this.camera3d = camera;
+
+                    const animate = () => {
+                        requestAnimationFrame(animate);
+                        controls.update();
+                        renderer.render(scene, camera);
+                    };
+                    animate();
+
+                    this.update3DLEDs();
+                },
+                update3DLEDs() {
+                    if (!this.led3dSegments) return;
+                    let val1 = this.latchReg & 0xFF;
+                    let val2 = (this.latchReg >> 8) & 0xFF;
+
+                    const updateSegs = (mats, val) => {
+                        if (!mats || mats.length === 0) return;
+                        for (let i = 0; i < 8; i++) {
+                            let mask = 1 << i;
+                            let isOn = (val & mask) === 0; // Common anode
+                            mats[i].color.setHex(isOn ? 0xff0000 : 0x330000);
+                        }
+                    };
+                    updateSegs(this.led3dSegments.led1, val1);
+                    updateSegs(this.led3dSegments.led2, val2);
+                }
+            },
+            mounted() {
+                if (this.viewMode === '3d') {
+                    setTimeout(() => { this.init3D(); }, 100);
+                }
+            },
+            watch: {
+                viewMode(newV) {
+                    if (newV === '3d') {
+                        setTimeout(() => { this.init3D(); }, 100);
+                    }
+                },
+                latchReg() {
+                    if (this.viewMode === '3d') {
+                        this.update3DLEDs();
+                    }
+                }
+            }
+        };
+
+        createApp(App).mount('#app');
+    </script>
+</body>
+
+</html>
